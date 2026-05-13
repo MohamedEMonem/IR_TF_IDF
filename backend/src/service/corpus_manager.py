@@ -2,36 +2,53 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 from pathlib import Path
+from threading import RLock
 from typing import Dict, List
 
-from ..config import COCA_DIR, WIKI_FILE
+from ..config import CORPUS_DIR
 from ..model import DocumentRecord
+from ..utils.pdf import extract_pdf_text
 from ..utils.tokenizer import tokenize
 from ..utils.vector import compute_idf, compute_tf, vector_norm
 
 
 class CorpusManager:
     def __init__(self) -> None:
-        self._documents = self._load_documents()
-        self._document_frequency = self._compute_document_frequency(self._documents)
-        self._idf = compute_idf(self._document_frequency, len(self._documents))
-        self._vectors = self._build_vectors(self._documents, self._idf)
+        self._lock = RLock()
+        self._documents: List[DocumentRecord] = []
+        self._document_frequency: Dict[str, int] = {}
+        self._idf: Dict[str, float] = {}
+        self._vectors: List[Dict[str, object]] = []
+        self.refresh()
 
     @staticmethod
     def _load_text_paths() -> List[Path]:
-        paths: List[Path] = []
-        if COCA_DIR.exists():
-            paths.extend(sorted(COCA_DIR.glob("*.txt")))
-        if WIKI_FILE.exists():
-            paths.append(WIKI_FILE)
-        return paths
+        if not CORPUS_DIR.exists():
+            return []
+        return sorted(
+            path
+            for path in CORPUS_DIR.rglob("*")
+            if path.is_file() and path.suffix.lower() in {".txt", ".pdf"}
+        )
+
+    @staticmethod
+    def _read_document_text(path: Path) -> str:
+        if path.suffix.lower() == ".pdf":
+            return extract_pdf_text(path)
+        return path.read_text(encoding="utf-8", errors="ignore")
 
     def _load_documents(self) -> List[DocumentRecord]:
         records: List[DocumentRecord] = []
         for doc_id, path in enumerate(self._load_text_paths(), start=1):
             try:
-                text = path.read_text(encoding="utf-8", errors="ignore")
+                text = self._read_document_text(path)
             except OSError:
+                continue
+            except RuntimeError:
+                continue
+
+            text = text.strip()
+            if not text:
                 continue
 
             tokens = tokenize(text)
@@ -73,22 +90,39 @@ class CorpusManager:
             )
         return indexed_documents
 
+    def refresh(self) -> None:
+        with self._lock:
+            documents = self._load_documents()
+            document_frequency = self._compute_document_frequency(documents)
+            idf = compute_idf(document_frequency, len(documents))
+            vectors = self._build_vectors(documents, idf)
+
+            self._documents = documents
+            self._document_frequency = document_frequency
+            self._idf = idf
+            self._vectors = vectors
+
     def get_documents(self) -> List[DocumentRecord]:
-        return self._documents
+        with self._lock:
+            return list(self._documents)
 
     def get_document_frequency(self) -> Dict[str, int]:
-        return self._document_frequency
+        with self._lock:
+            return dict(self._document_frequency)
 
     def get_idf(self) -> Dict[str, float]:
-        return self._idf
+        with self._lock:
+            return dict(self._idf)
 
     def get_indexed_documents(self) -> List[Dict[str, object]]:
-        return self._vectors
+        with self._lock:
+            return [dict(entry) for entry in self._vectors]
 
     def get_metadata(self) -> Dict[str, object]:
-        return {
-            "total_documents": len(self._documents),
-            "unique_terms": len(self._idf),
-            "document_frequency": self._document_frequency,
-            "idf": self._idf,
-        }
+        with self._lock:
+            return {
+                "total_documents": len(self._documents),
+                "unique_terms": len(self._idf),
+                "document_frequency": dict(self._document_frequency),
+                "idf": dict(self._idf),
+            }
