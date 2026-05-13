@@ -27,6 +27,22 @@ Start the Django backend from the repo root:
 python backend/manage.py runserver 127.0.0.1:8000
 ```
 
+## Docker
+
+Build the backend image from the repository root:
+
+```bash
+docker build -f backend/Dockerfile -t ir-tfidf-backend .
+```
+
+Run the container:
+
+```bash
+docker run --rm -p 8000:8000 ir-tfidf-backend
+```
+
+The image copies the Django backend and the plain-text corpus only. The PDF corpus is excluded from the build context.
+
 ## REST API
 
 The Django backend uses a standard JSON envelope with `success`, `message`, `data`, `error`, and `meta`.
