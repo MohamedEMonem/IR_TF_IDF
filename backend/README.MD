@@ -752,6 +752,7 @@ Previously, users couldn't tell if a snippet was cut off or if the search term a
 **Example Before/After:**
 
 Before:
+
 ```json
 {
   "snippet": "classical art in the 18th century, which was a strange",
@@ -760,6 +761,7 @@ Before:
 ```
 
 After:
+
 ```json
 {
   "snippet": "...history of European classical art in the 18th century, which was a...",
@@ -770,6 +772,7 @@ After:
 **Backward Compatibility:** ✓ Fully compatible - function signature unchanged, only output format enhanced.
 
 **Testing:** All edge cases verified:
+
 - ✓ Term in middle with truncation: generates both leading and trailing `...`
 - ✓ Term at start: no leading `...`
 - ✓ Term at end: no trailing `...`
