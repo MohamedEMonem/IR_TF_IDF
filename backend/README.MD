@@ -676,6 +676,59 @@ If you want to understand the backend in the fastest order, read it this way:
 8. `src/service/corpus_manager.py` and `src/service/ranker.py` to see how the ranking actually happens.
 9. `src/api/schemas.py`, `src/api/routes.py`, and `src/app.py` if you want the legacy prototype and serialization layer.
 
+## Changelog
+
+### May 13, 2026 - Enhanced Snippet Generation with Visual Ellipsis Indicators
+
+**File Modified:** `backend/src/utils/text.py`
+
+**What Changed:**
+The `build_snippet()` function now adds visual ellipsis (`...`) markers to indicate when document text has been truncated in search result previews.
+
+**Changes:**
+
+1. **Leading Ellipsis** - Added when the matched term is found more than 80 characters from the document start
+   - Indicates content was cut from the beginning
+   - Example: `"...history of European classical art in the 18th century..."`
+
+2. **Trailing Ellipsis** - Added when the context window ends before the document ends
+   - Indicates content was cut from the end
+   - Example: `"...classical art in the 18th century, which was..."`
+
+3. **Improved Fallback** - When no search term is found, returns first 220 characters with trailing ellipsis if document is longer
+   - Example: `"First 220 characters of the document when no term is found..."`
+
+**Why This Matters:**
+Previously, users couldn't tell if a snippet was cut off or if the search term actually didn't appear in the full document. Now ellipsis clearly shows truncation boundaries, making search results more transparent.
+
+**Example Before/After:**
+
+Before:
+```json
+{
+  "snippet": "classical art in the 18th century, which was a strange",
+  "matched_terms": ["art"]
+}
+```
+
+After:
+```json
+{
+  "snippet": "...history of European classical art in the 18th century, which was a...",
+  "matched_terms": ["art"]
+}
+```
+
+**Backward Compatibility:** ✓ Fully compatible - function signature unchanged, only output format enhanced.
+
+**Testing:** All edge cases verified:
+- ✓ Term in middle with truncation: generates both leading and trailing `...`
+- ✓ Term at start: no leading `...`
+- ✓ Term at end: no trailing `...`
+- ✓ Term not found: graceful fallback with trailing `...` for long documents
+
+---
+
 ## Summary
 
 This backend is a manual TF-IDF ranking service built with Django.

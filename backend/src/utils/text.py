@@ -10,6 +10,19 @@ def build_snippet(text: str, query_terms: Iterable[str], fallback_length: int = 
         if index != -1:
             start = max(index - 80, 0)
             end = min(index + 140, len(text))
-            return text[start:end].replace("\n", " ").strip()
+            snippet = text[start:end].replace("\n", " ").strip()
+            
+            # Add ellipsis to indicate truncation
+            if start > 0:
+                snippet = "..." + snippet
+            if end < len(text):
+                snippet = snippet + "..."
+            
+            return snippet
 
-    return " ".join(text.split())[:fallback_length]
+    # Fallback: return first 220 chars with ellipsis if truncated
+    full_text = " ".join(text.split())
+    fallback_snippet = full_text[:fallback_length]
+    if len(full_text) > fallback_length:
+        fallback_snippet = fallback_snippet + "..."
+    return fallback_snippet
