@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: tf-idf-backend:latest
+    container_name: tfidf-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      DJANGO_SETTINGS_MODULE: backend.django_project.settings
+      PYTHONUNBUFFERED: '1'
+    volumes:
+      - ./backend:/app/backend
+      - ./backend/corpus:/app/corpus
