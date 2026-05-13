@@ -136,6 +136,7 @@ Current endpoints:
 - `GET /api/health`
 - `GET /api/meta`
 - `POST /api/rank`
+- `POST /api/upload`
 
 #### `backend/django_app/views.py`
 
@@ -155,6 +156,53 @@ What it does line by line:
 - Defines `health_view(...)` to return a simple status payload.
 - Defines `meta_view(...)` to return corpus metadata and IDF statistics.
 - Defines `rank_view(...)` to parse the request body, validate the query, call the ranker, serialize the result, and return the response.
+
+#### Upload endpoint (`POST /api/upload`)
+
+Purpose: accept user uploads of plain-text (`.txt`) and PDF (`.pdf`) files, persist them into the corpus, extract text from PDFs, and trigger an immediate re-index so newly uploaded files become searchable right away.
+
+Behavior and request format:
+
+- Accepts `multipart/form-data` POST requests where the file field is named `files`. Multiple files may be supplied by repeating the `files` field.
+- Allowed file extensions: `.txt` and `.pdf` (other file types are rejected).
+- Uploaded files are saved under the persistent uploads directory: `backend/corpus/uploads/` with a generated unique filename to avoid collisions.
+- For `.pdf` uploads the backend extracts text using `pypdf` (helper: `backend/src/utils/pdf.py`) before indexing.
+- After files are saved the view calls `CorpusManager.refresh()` to rebuild in-memory TF/IDF statistics and document vectors so the new documents are immediately included in subsequent `/api/rank` calls.
+
+Example `curl` usage:
+
+```bash
+curl -v -X POST http://127.0.0.1:8000/api/upload \
+  -F "files=@/path/to/file1.txt" \
+  -F "files=@/path/to/file2.pdf"
+```
+
+Example Django test-client usage (from repository root):
+
+```python
+from django.test import Client
+from django.core.files.uploadedfile import SimpleUploadedFile
+
+client = Client()
+files = [
+    SimpleUploadedFile('example.txt', b'this is a test document'),
+    SimpleUploadedFile('paper.pdf', open('local.pdf','rb').read(), content_type='application/pdf'),
+]
+resp = client.post('/api/upload', data={'files': files})
+print(resp.json())
+```
+
+Response shape:
+
+- The endpoint responds with the standard API envelope used elsewhere in the project: `success`, `message`, `data`, `error`, and `meta`.
+- `data` contains a `saved_files` array with objects describing each saved file (original filename, saved path, saved name).
+- `meta` contains the path `/api/upload` and may include updated corpus metadata when the refresh completes.
+
+Notes and operational details:
+
+- `pypdf` is required to extract text from PDFs; the package was added to `backend/requirements.txt` as `pypdf>=5.0,<6`.
+- Uploaded PDFs that cannot be parsed gracefully fall back to being skipped for indexing (the file is still saved to disk) so the service remains robust.
+- This endpoint does not implement production hardening (authentication, virus scanning, file size limits). Add those protections before exposing the endpoint publicly.
 
 Important behavior details:
 
