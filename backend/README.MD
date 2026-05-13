@@ -617,6 +617,50 @@ Rules:
 
 The response includes the analyzed query, corpus summary, ranked results, snippets, and matched-term math.
 
+### `POST /api/upload`
+
+Accepts file uploads and adds them to the corpus. Supports `.txt` and `.pdf` files.
+
+Request format:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/upload \
+  -F "files=@document1.txt" \
+  -F "files=@document2.pdf"
+```
+
+Request body rules:
+
+- Use `multipart/form-data` content type
+- The file field name must be `files`
+- Multiple files can be uploaded by repeating the `files` field
+- Allowed extensions: `.txt` and `.pdf` (other file types are rejected)
+
+Response data includes:
+
+```json
+{
+  "saved_files": [
+    {
+      "name": "original_filename.txt",
+      "stored_name": "original_filename-<uuid>.txt",
+      "path": "backend/corpus/uploads/original_filename-<uuid>.txt",
+      "size": 1024
+    }
+  ],
+  "corpus": { "total_documents": 100, "unique_terms": 5000 }
+}
+```
+
+Behavior:
+
+- Uploaded files are saved to `backend/corpus/uploads/` with a unique filename to avoid collisions
+- PDF files are automatically parsed for text extraction
+- After upload completes, the corpus is automatically refreshed so new documents are immediately searchable
+- Returns `400` if no files are provided or file type is not supported
+- Returns `405` if the request method is not `POST`
+- Returns `500` if file save fails
+
 ## Corpus Scope
 
 The backend reads only these plain-text sources:
@@ -661,6 +705,60 @@ Run it:
 ```bash
 docker run --rm -p 8000:8000 ir-tfidf-backend
 ```
+
+### Docker Compose
+
+A `docker-compose.yml` file is provided in the repository root for local development and deployment.
+
+Services:
+
+- `backend`: The Django API service running on port 8000
+
+Configuration:
+
+```yaml
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: tf-idf-backend:latest
+    container_name: tfidf-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      DJANGO_SETTINGS_MODULE: backend.django_project.settings
+      PYTHONUNBUFFERED: '1'
+    volumes:
+      - ./backend:/app/backend
+      - ./backend/corpus:/app/corpus
+```
+
+Start the service:
+
+```bash
+docker-compose up -d --build
+```
+
+View logs:
+
+```bash
+docker-compose logs -f backend
+```
+
+Stop the service:
+
+```bash
+docker-compose down
+```
+
+Notes:
+
+- The `restart: unless-stopped` policy ensures the container restarts automatically unless explicitly stopped
+- The `volumes` mounts ensure code changes and corpus files persist between container restarts
+- `PYTHONUNBUFFERED=1` ensures Python output is sent directly to logs without buffering
+- The image is tagged as `tf-idf-backend:latest` for easy identification
 
 ## Local Setup
 
