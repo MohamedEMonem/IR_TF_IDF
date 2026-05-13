@@ -33,3 +33,4 @@ class RankResponse:
     query: Dict[str, object]
     corpus: Dict[str, object]
     results: List[RankedDocument]
+    rank_time_ms: float

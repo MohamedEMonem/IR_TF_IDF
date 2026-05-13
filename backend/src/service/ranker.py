@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 from collections import Counter
+from time import perf_counter
 from typing import Dict, List
 
 from ..constants import DEFAULT_TOP_K
@@ -52,6 +53,7 @@ class Ranker:
         )
 
     def rank(self, query: str, top_k: int = DEFAULT_TOP_K) -> RankResponse:
+        started_at = perf_counter()
         query_info = self.explain_query(query)
         query_vector = query_info.vector
         query_terms = query_info.tokens
@@ -106,6 +108,7 @@ class Ranker:
                 "top_k": top_k,
             },
             results=ranked_documents[:top_k],
+            rank_time_ms=(perf_counter() - started_at) * 1000.0,
         )
 
     def get_metadata(self) -> Dict[str, object]:

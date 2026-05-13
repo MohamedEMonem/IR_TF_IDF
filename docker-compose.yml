@@ -13,4 +13,4 @@ services:
       PYTHONUNBUFFERED: '1'
     volumes:
       - ./backend:/app/backend
-      - ./backend/corpus:/app/corpus
+      - ./corpus:/app/corpus
