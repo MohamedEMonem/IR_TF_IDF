@@ -4,7 +4,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from threading import RLock
 from typing import Dict, List
-
+import gc  
 from ..config import CORPUS_DIR
 from ..model import DocumentRecord
 from ..utils.pdf import extract_pdf_text
@@ -43,29 +43,35 @@ class CorpusManager:
         records: List[DocumentRecord] = []
         for doc_id, path in enumerate(self._load_text_paths(), start=1):
             try:
-                text = self._read_document_text(path)
-            except OSError:
-                continue
-            except RuntimeError:
+                text = self._read_document_text(path).strip()
+            except (OSError, RuntimeError):
                 continue
 
-            text = text.strip()
             if not text:
                 continue
 
             tokens = tokenize(text)
             term_counts = dict(Counter(tokens))
+            length = len(tokens)
+            
+            # 1. Nuke the heavy token list from memory instantly
+            del tokens 
+
             records.append(
                 DocumentRecord(
                     doc_id=doc_id,
                     path=path.relative_to(Path(__file__).resolve().parents[3]).as_posix(),
                     name=path.name,
                     text=text,
-                    tokens=tokens,
                     term_counts=term_counts,
-                    length=len(tokens),
+                    length=length,
                 )
             )
+            
+            # 2. Force the garbage collector to run every 50 documents
+            if doc_id % 50 == 0:
+                gc.collect()
+                
         return records
 
     @staticmethod
