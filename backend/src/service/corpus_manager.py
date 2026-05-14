@@ -10,7 +10,9 @@ from ..model import DocumentRecord
 from ..utils.pdf import extract_pdf_text
 from ..utils.tokenizer import tokenize
 from ..utils.vector import compute_idf, compute_tf, vector_norm
-
+import hashlib
+import pickle
+from collections import Counter, defaultdict
 
 class CorpusManager:
     def __init__(self) -> None:
@@ -90,8 +92,50 @@ class CorpusManager:
             )
         return indexed_documents
 
-    def refresh(self) -> None:
+    def _generate_fingerprint(self) -> str:
+        """Generates a unique hash based on corpus file names and sizes."""
+        hasher = hashlib.sha256()
+        for path in self._load_text_paths():
+            try:
+                stat = path.stat()
+                # Cast mtime to int to avoid Docker float precision mismatches!
+                fingerprint_str = f"{path.name}-{int(stat.st_mtime)}-{stat.st_size}"
+                hasher.update(fingerprint_str.encode("utf-8"))
+            except OSError:
+                continue
+        return hasher.hexdigest()
+
+    def refresh(self, force_rebuild: bool = False) -> None:
+        """Loads from cache if valid, otherwise rebuilds the index and saves it."""
+        # Moving the cache file one level up to avoid triggering Django's file watcher repeatedly
+        cache_file = CORPUS_DIR.parent / ".index_cache.pkl"
+
         with self._lock:
+            current_fingerprint = self._generate_fingerprint()
+
+            # 1. Attempt to load from disk cache
+            if not force_rebuild and cache_file.exists():
+                try:
+                    with cache_file.open("rb") as f:
+                        cache_data = pickle.load(f)
+                    
+                    if cache_data.get("fingerprint") == current_fingerprint:
+                        self._documents = cache_data["documents"]
+                        self._document_frequency = cache_data["document_frequency"]
+                        self._idf = cache_data["idf"]
+                        self._vectors = cache_data["vectors"]
+                        print("✅ Loaded corpus index instantly from cache.")
+                        return  # Exit early, cache hit!
+                    else:
+                        print(f"⚠️ Cache invalidated. Fingerprint mismatch.")
+                        print(f"   Old: {cache_data.get('fingerprint')}")
+                        print(f"   New: {current_fingerprint}")
+                except Exception as e:
+                    # Catching ALL exceptions here so we don't swallow import/pickle errors silently
+                    print(f"⚠️ Failed to read cache file: {repr(e)}")
+
+            # 2. Cache miss or forced rebuild: build from scratch
+            print("⏳ Building corpus index from scratch (This will take a moment)...")
             documents = self._load_documents()
             document_frequency = self._compute_document_frequency(documents)
             idf = compute_idf(document_frequency, len(documents))
@@ -102,6 +146,29 @@ class CorpusManager:
             self._idf = idf
             self._vectors = vectors
 
+            # 3. Serialize and save the new cache to disk
+            try:
+                # Write to a temporary file first
+                tmp_cache_file = cache_file.with_suffix('.tmp')
+                
+                with tmp_cache_file.open("wb") as f:
+                    pickle.dump({
+                        "fingerprint": current_fingerprint,
+                        "documents": self._documents,
+                        "document_frequency": self._document_frequency,
+                        "idf": self._idf,
+                        "vectors": self._vectors,
+                    }, f, protocol=pickle.HIGHEST_PROTOCOL)
+                
+                # Atomic rename: instantly replaces the old file
+                # This guarantees we NEVER get an EOFError again
+                tmp_cache_file.replace(cache_file)
+                print("💾 Saved new corpus index to cache perfectly.")
+                
+            except OSError as e:
+                print(f"❌ Warning: Failed to write cache to disk: {e}")
+                
+                
     def get_documents(self) -> List[DocumentRecord]:
         with self._lock:
             return list(self._documents)

@@ -11,6 +11,7 @@ services:
     environment:
       DJANGO_SETTINGS_MODULE: backend.django_project.settings
       PYTHONUNBUFFERED: '1'
+      CORPUS_DIR: '/app/corpus' 
     volumes:
       - ./backend:/app/backend
       - ./corpus:/app/corpus

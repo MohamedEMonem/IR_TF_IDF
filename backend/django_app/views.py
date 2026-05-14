@@ -93,7 +93,7 @@ def upload_view(request: HttpRequest) -> JsonResponse:
     except OSError:
         return _failure("Failed to save uploaded file", request.path, status=500)
 
-    CORPUS_MANAGER.refresh()
+    CORPUS_MANAGER.refresh(force_rebuild=True)
     return _success(
         "Files uploaded and corpus refreshed",
         {
