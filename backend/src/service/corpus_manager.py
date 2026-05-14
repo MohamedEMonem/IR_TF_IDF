@@ -98,8 +98,7 @@ class CorpusManager:
         for path in self._load_text_paths():
             try:
                 stat = path.stat()
-                # Cast mtime to int to avoid Docker float precision mismatches!
-                fingerprint_str = f"{path.name}-{int(stat.st_mtime)}-{stat.st_size}"
+                fingerprint_str = f"{path.name}-{stat.st_size}"
                 hasher.update(fingerprint_str.encode("utf-8"))
             except OSError:
                 continue
