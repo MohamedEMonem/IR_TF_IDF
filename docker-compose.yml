@@ -16,3 +16,7 @@ services:
       - ./backend:/app/backend
       - ./corpus:/app/corpus
       - ./data_cache:/app/data_cache
+
+volumes:
+  data_cache:
+  

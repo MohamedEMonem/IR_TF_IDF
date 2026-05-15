@@ -664,18 +664,22 @@ Behavior:
 ### `GET /api/document/{doc_id}`
 
 Retrieves a specific document by its ID.
-Response includes the document's metadata and full text:
 
-response data:
+Behavior:
 
-HTML
+- **Text Files (`.txt`)**: Returns the standard JSON envelope where the `data` object contains the document's metadata and full raw text.
+- **PDF Files (`.pdf`)**: Bypasses the standard JSON envelope and directly streams the binary file back to the client (`Content-Type: application/pdf`).
+- Returns `404` if the document is not found in the index or if the file is missing from the disk.
+- Returns `405` if the request method is not `GET`.
+
+Response `data` object (for text documents):
 
 ```json
 {
-  "doc_id": 42,
-  "name": "example.txt",
-  "path": "corpus/coca/example.txt",
-  "text": "Full original text of the document goes here..."
+  "doc_id": 4556,
+  "name": "text_web.txt (Article 4556)",
+  "path": "corpus/coca/text_web.txt",
+  "text": "@@5095241 <h> Privacy Policy <p> First Place 4 Health believes that privacy is important to the success and use of the Internet..."
 }
 ```
 

@@ -33,3 +33,6 @@ Thumbs.db
 
 #large corpus hold all internet news articles, not suitable for version control if you need it hit https://www.corpusdata.org/now/samples/now-text.zip
 corpus/now-text/
+
+# Cache for data processing, not suitable for version control
+data_cache/
