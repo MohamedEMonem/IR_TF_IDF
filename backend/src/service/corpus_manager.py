@@ -240,9 +240,22 @@ class CorpusManager:
                 print("⏳ Files were deleted. Re-indexing remaining files...")
                 all_documents = docs_to_keep
 
-            # Fix IDs to be sequential
+            # Fix IDs to be sequential by creating fresh objects (bypassing the frozen lock)
+            updated_documents = []
             for i, doc in enumerate(all_documents):
-                doc.doc_id = i + 1
+                new_id = i + 1
+                updated_documents.append(
+                    DocumentRecord(
+                        doc_id=new_id,
+                        path=doc.path,
+                        # Dynamically update the name so the Article number stays accurate
+                        name=f"{Path(doc.path).name} (Article {new_id})",
+                        text=doc.text,
+                        term_counts=doc.term_counts,
+                        length=doc.length,
+                    )
+                )
+            all_documents = updated_documents
 
             # 6. Recompute the global math (This is very fast)
             print("🧮 Recomputing TF-IDF math...")
