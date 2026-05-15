@@ -56,14 +56,26 @@ class Ranker:
         started_at = perf_counter()
         query_info = self.explain_query(query)
         query_vector = query_info.vector
-        query_terms = query_info.tokens
+        
+        # 1. OPTIMIZATION: Convert to set once for fast lookups
+        query_terms_set = set(query_info.tokens) 
         idf = self._corpus_manager.get_idf()
 
         ranked_documents: List[RankedDocument] = []
         for entry in self._corpus_manager.get_indexed_documents():
             document = entry["document"]
+            
+            # 2. OPTIMIZATION: Find matched terms BEFORE doing heavy math
+            matched_terms_set = query_terms_set.intersection(document.term_counts)
+            
+            # 3. BIGGEST FIX: If the document doesn't have the word, SKIP IT completely!
+            if not matched_terms_set:
+                continue 
+                
+            # If it passed the check, now we do the heavy calculations
+            matched_terms = sorted(matched_terms_set)
             score = cosine_similarity(query_vector, entry["vector"])
-            matched_terms = sorted(set(query_terms).intersection(document.term_counts))
+            
             matched_details = [
                 MatchedTerm(
                     term=term,
@@ -85,7 +97,7 @@ class Ranker:
                     score=score,
                     doc_length=document.length,
                     doc_norm=entry["norm"],
-                    snippet=build_snippet(document.text, query_terms),
+                    snippet=build_snippet(document.text, list(query_terms_set)),
                     matched_terms=matched_terms,
                     matched_details=matched_details,
                 )
