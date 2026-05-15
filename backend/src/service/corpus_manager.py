@@ -17,7 +17,8 @@ from collections import Counter, defaultdict
 
 class CorpusManager:
     def __init__(self) -> None:
-        self._lock = RLock()
+        self._lock = RLock()        
+        self._indexing_lock = RLock() 
         self._documents: List[DocumentRecord] = []
         self._document_frequency: Dict[str, int] = {}
         self._idf: Dict[str, float] = {}
@@ -170,22 +171,19 @@ class CorpusManager:
         return hasher.hexdigest()
 
     def refresh(self, force_rebuild: bool = False) -> None:
-        """Loads valid files from cache, parses ONLY new/modified files, and updates the index."""
+        """Loads valid files from cache, parses ONLY new/modified files, and seamlessly swaps the index."""
         # 1. Create a path to the cache directory inside the container
         cache_dir = CORPUS_DIR.parent / "data_cache"
-        
-        # 2. Make sure the folder exists!
         cache_dir.mkdir(exist_ok=True) 
-        
-        # 3. Define the exact file path
         cache_file = cache_dir / ".index_cache.pkl"
 
-        with self._lock:
-            # 1. Get current files and their last modified times
+        # 2. Only allow one indexing thread to run at a time
+        with self._indexing_lock:
+            # Notice we DO NOT use self._lock here. Searches can continue normally!
+
             current_files = {}
             for path in self._load_text_paths():
                 try:
-                    # Match the path format used in your DocumentRecord
                     path_str = path.relative_to(Path(__file__).resolve().parents[3]).as_posix()
                     current_files[path_str] = {
                         "path": path, 
@@ -194,10 +192,8 @@ class CorpusManager:
                 except OSError:
                     continue
 
-            # 2. Try to load existing cache
             cached_documents = []
             cached_registry = {}
-            
             if not force_rebuild and cache_file.exists():
                 try:
                     with cache_file.open("rb") as f:
@@ -207,31 +203,28 @@ class CorpusManager:
                 except Exception as e:
                     print(f"⚠️ Failed to read cache: {e}. Building fresh.")
 
-            # 3. Figure out what changed
             docs_to_keep = []
             paths_to_parse = []
-            
-            # Identify unchanged files to keep from cache
             for doc in cached_documents:
                 if doc.path in current_files:
                     if cached_registry.get(doc.path) == current_files[doc.path]["mtime"]:
                         docs_to_keep.append(doc)
 
-            # Identify new or modified files that need heavy parsing
             for path_str, info in current_files.items():
                 if path_str not in cached_registry or cached_registry.get(path_str) != info["mtime"]:
                     paths_to_parse.append(info["path"])
 
-            # 4. Check if we can exit early
+            # Check if we can exit early
             if not paths_to_parse and len(docs_to_keep) == len(cached_documents):
                 print("✅ No corpus changes detected. Loaded index instantly from persistent cache.")
-                self._documents = cached_documents
-                self._document_frequency = cache_data["document_frequency"]
-                self._idf = cache_data["idf"]
-                self._vectors = cache_data["vectors"]
+                # We still grab the lock just to apply the loaded cache to memory
+                with self._lock:
+                    self._documents = cached_documents
+                    self._document_frequency = cache_data.get("document_frequency", {})
+                    self._idf = cache_data.get("idf", {})
+                    self._vectors = cache_data.get("vectors", [])
                 return
 
-            # 5. Parse ONLY the new/modified files (The heavy lifting)
             if paths_to_parse:
                 print(f"⏳ Parsing {len(paths_to_parse)} new or modified files...")
                 new_documents = self._parse_specific_files(paths_to_parse, start_id=len(docs_to_keep) + 1)
@@ -240,7 +233,7 @@ class CorpusManager:
                 print("⏳ Files were deleted. Re-indexing remaining files...")
                 all_documents = docs_to_keep
 
-            # Fix IDs to be sequential by creating fresh objects (bypassing the frozen lock)
+            # Fix IDs bypassing frozen lock
             updated_documents = []
             for i, doc in enumerate(all_documents):
                 new_id = i + 1
@@ -248,7 +241,6 @@ class CorpusManager:
                     DocumentRecord(
                         doc_id=new_id,
                         path=doc.path,
-                        # Dynamically update the name so the Article number stays accurate
                         name=f"{Path(doc.path).name} (Article {new_id})",
                         text=doc.text,
                         term_counts=doc.term_counts,
@@ -257,28 +249,31 @@ class CorpusManager:
                 )
             all_documents = updated_documents
 
-            # 6. Recompute the global math (This is very fast)
+            # Recompute the global math into TEMPORARY variables
             print("🧮 Recomputing TF-IDF math...")
             document_frequency = self._compute_document_frequency(all_documents)
             idf = compute_idf(document_frequency, len(all_documents))
             vectors = self._build_vectors(all_documents, idf)
 
-            self._documents = all_documents
-            self._document_frequency = document_frequency
-            self._idf = idf
-            self._vectors = vectors
+            # >>> THE MAGIC FIX <<<
+            # The math is done. We grab the main lock for 0.001 seconds to instantly 
+            # swap the live index with our newly built variables!
+            with self._lock:
+                self._documents = all_documents
+                self._document_frequency = document_frequency
+                self._idf = idf
+                self._vectors = vectors
 
-            # 7. Create new registry map and save cache
+            # Save Cache to Disk
             new_registry = {path_str: info["mtime"] for path_str, info in current_files.items()}
-            
             try:
                 with cache_file.open("wb") as f:
                     pickle.dump({
                         "registry": new_registry,
-                        "documents": self._documents,
-                        "document_frequency": self._document_frequency,
-                        "idf": self._idf,
-                        "vectors": self._vectors,
+                        "documents": all_documents,
+                        "document_frequency": document_frequency,
+                        "idf": idf,
+                        "vectors": vectors, 
                     }, f, protocol=pickle.HIGHEST_PROTOCOL)
                 print("💾 Saved updated index to persistent cache.")
             except OSError as e:
