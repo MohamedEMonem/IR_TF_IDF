@@ -112,6 +112,35 @@ class CorpusManager:
                 df[term] += 1
         return dict(df)
 
+    def _parse_specific_files(self, paths: List[Path], start_id: int) -> List[DocumentRecord]:
+        """Helper function to parse only specific paths instead of the whole directory."""
+        records: List[DocumentRecord] = []
+        doc_id_counter = start_id
+
+        for path in paths:
+            for article_text in self._stream_articles(path):
+                if not article_text:
+                    continue
+
+                tokens = [sys.intern(t) for t in tokenize(article_text)]
+                if not tokens:
+                    continue
+                    
+                records.append(
+                    DocumentRecord(
+                        doc_id=doc_id_counter,
+                        path=path.relative_to(Path(__file__).resolve().parents[3]).as_posix(),
+                        name=f"{path.name} (Article {doc_id_counter})",
+                        text=article_text,
+                        term_counts=dict(Counter(tokens)),
+                        length=len(tokens),
+                    )
+                )
+                del tokens 
+                doc_id_counter += 1
+        return records
+
+
     @staticmethod
     def _build_vectors(documents: List[DocumentRecord], idf: Dict[str, float]) -> List[Dict[str, object]]:
         indexed_documents: List[Dict[str, object]] = []
@@ -141,57 +170,104 @@ class CorpusManager:
         return hasher.hexdigest()
 
     def refresh(self, force_rebuild: bool = False) -> None:
-        """Loads from cache if valid, otherwise rebuilds the index and saves it."""
-        # Moving the cache file one level up to avoid triggering Django's file watcher repeatedly
-        cache_file = CORPUS_DIR.parent / ".index_cache.pkl"
+        """Loads valid files from cache, parses ONLY new/modified files, and updates the index."""
+        # 1. Create a path to the cache directory inside the container
+        cache_dir = CORPUS_DIR.parent / "data_cache"
+        
+        # 2. Make sure the folder exists!
+        cache_dir.mkdir(exist_ok=True) 
+        
+        # 3. Define the exact file path
+        cache_file = cache_dir / ".index_cache.pkl"
 
         with self._lock:
-            current_fingerprint = self._generate_fingerprint()
+            # 1. Get current files and their last modified times
+            current_files = {}
+            for path in self._load_text_paths():
+                try:
+                    # Match the path format used in your DocumentRecord
+                    path_str = path.relative_to(Path(__file__).resolve().parents[3]).as_posix()
+                    current_files[path_str] = {
+                        "path": path, 
+                        "mtime": path.stat().st_mtime
+                    }
+                except OSError:
+                    continue
 
-            # 1. Attempt to load from disk cache
+            # 2. Try to load existing cache
+            cached_documents = []
+            cached_registry = {}
+            
             if not force_rebuild and cache_file.exists():
                 try:
                     with cache_file.open("rb") as f:
                         cache_data = pickle.load(f)
-                    
-                    if cache_data.get("fingerprint") == current_fingerprint:
-                        self._documents = cache_data["documents"]
-                        self._document_frequency = cache_data["document_frequency"]
-                        self._idf = cache_data["idf"]
-                        self._vectors = cache_data["vectors"]
-                        print("✅ Loaded corpus index instantly from cache.")
-                        return  # Exit early, cache hit!
-                    else:
-                        print(f"⚠️ Cache invalidated. Fingerprint mismatch.")
-                        print(f"   Old: {cache_data.get('fingerprint')}")
-                        print(f"   New: {current_fingerprint}")
+                        cached_documents = cache_data.get("documents", [])
+                        cached_registry = cache_data.get("registry", {})
                 except Exception as e:
-                    # Catching ALL exceptions here so we don't swallow import/pickle errors silently
-                    print(f"⚠️ Failed to read cache file: {repr(e)}")
+                    print(f"⚠️ Failed to read cache: {e}. Building fresh.")
 
-            # 2. Cache miss or forced rebuild: build from scratch
-            print("⏳ Building corpus index from scratch (This will take a moment)...")
-            documents = self._load_documents()
-            document_frequency = self._compute_document_frequency(documents)
-            idf = compute_idf(document_frequency, len(documents))
-            vectors = self._build_vectors(documents, idf)
+            # 3. Figure out what changed
+            docs_to_keep = []
+            paths_to_parse = []
+            
+            # Identify unchanged files to keep from cache
+            for doc in cached_documents:
+                if doc.path in current_files:
+                    if cached_registry.get(doc.path) == current_files[doc.path]["mtime"]:
+                        docs_to_keep.append(doc)
 
-            self._documents = documents
+            # Identify new or modified files that need heavy parsing
+            for path_str, info in current_files.items():
+                if path_str not in cached_registry or cached_registry.get(path_str) != info["mtime"]:
+                    paths_to_parse.append(info["path"])
+
+            # 4. Check if we can exit early
+            if not paths_to_parse and len(docs_to_keep) == len(cached_documents):
+                print("✅ No corpus changes detected. Loaded index instantly from persistent cache.")
+                self._documents = cached_documents
+                self._document_frequency = cache_data["document_frequency"]
+                self._idf = cache_data["idf"]
+                self._vectors = cache_data["vectors"]
+                return
+
+            # 5. Parse ONLY the new/modified files (The heavy lifting)
+            if paths_to_parse:
+                print(f"⏳ Parsing {len(paths_to_parse)} new or modified files...")
+                new_documents = self._parse_specific_files(paths_to_parse, start_id=len(docs_to_keep) + 1)
+                all_documents = docs_to_keep + new_documents
+            else:
+                print("⏳ Files were deleted. Re-indexing remaining files...")
+                all_documents = docs_to_keep
+
+            # Fix IDs to be sequential
+            for i, doc in enumerate(all_documents):
+                doc.doc_id = i + 1
+
+            # 6. Recompute the global math (This is very fast)
+            print("🧮 Recomputing TF-IDF math...")
+            document_frequency = self._compute_document_frequency(all_documents)
+            idf = compute_idf(document_frequency, len(all_documents))
+            vectors = self._build_vectors(all_documents, idf)
+
+            self._documents = all_documents
             self._document_frequency = document_frequency
             self._idf = idf
             self._vectors = vectors
 
-            # 3. Serialize and save the new cache to disk
+            # 7. Create new registry map and save cache
+            new_registry = {path_str: info["mtime"] for path_str, info in current_files.items()}
+            
             try:
                 with cache_file.open("wb") as f:
                     pickle.dump({
-                        "fingerprint": current_fingerprint,
+                        "registry": new_registry,
                         "documents": self._documents,
                         "document_frequency": self._document_frequency,
                         "idf": self._idf,
                         "vectors": self._vectors,
                     }, f, protocol=pickle.HIGHEST_PROTOCOL)
-                print("💾 Saved new corpus index to cache.")
+                print("💾 Saved updated index to persistent cache.")
             except OSError as e:
                 print(f"❌ Warning: Failed to write cache to disk: {e}")
                 
