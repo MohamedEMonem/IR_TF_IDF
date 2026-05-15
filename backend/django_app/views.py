@@ -10,7 +10,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils.text import get_valid_filename
 
 from backend.src.api.schemas import serialize_rank_response
-from backend.src.config import UPLOADS_DIR
+from backend.src.config import UPLOADS_DIR, CORPUS_DIR
 from backend.src.constants import DEFAULT_TOP_K
 from backend.src.service import CorpusManager, Ranker
 
@@ -124,8 +124,9 @@ def upload_view(request: HttpRequest) -> JsonResponse:
             saved_files.append(_save_uploaded_file(uploaded_file))
     except ValueError as exc:
         return _failure(str(exc), request.path, status=400)
-    except OSError:
-        return _failure("Failed to save uploaded file", request.path, status=500)
+    except OSError as exc:
+        # Pass the actual error string so you aren't guessing!
+        return _failure(f"Failed to save uploaded file: {str(exc)}", request.path, status=500)
 
     CORPUS_MANAGER.refresh(force_rebuild=True)
     return _success(
