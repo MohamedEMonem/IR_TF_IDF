@@ -14,10 +14,51 @@ from backend.src.config import UPLOADS_DIR
 from backend.src.constants import DEFAULT_TOP_K
 from backend.src.service import CorpusManager, Ranker
 
+from django.http import FileResponse, Http404
+from backend.src.config import BASE_DIR
+from django.http import FileResponse, HttpResponse, Http404
+
+
 CORPUS_MANAGER = CorpusManager()
 RANKER = Ranker(CORPUS_MANAGER)
 ALLOWED_UPLOAD_EXTENSIONS = {".txt", ".pdf"}
 
+
+def document_view(request, doc_id: int):
+    """Streams PDFs or returns specific text document contents."""
+    if request.method != "GET":
+        return _failure("Method not allowed", request.path, status=405)
+
+    doc = next((d for d in CORPUS_MANAGER.get_documents() if d.doc_id == doc_id), None)
+    if not doc:
+        raise Http404("Document not found in the index.")
+
+    # 1. If it's a PDF, stream it from the hard drive
+    if doc.path.lower().endswith('.pdf'):
+        file_path = BASE_DIR / doc.path 
+        if not file_path.exists():
+            raise Http404("PDF file not found on disk.")
+        return FileResponse(file_path.open('rb'), content_type='application/pdf')
+    
+    # 2. If it's text, return ONLY the specific article stored in doc.text
+    else:
+        html_content = f"""
+        <html>
+            <head>
+                <title>{doc.name}</title>
+                <style>
+                    body {{ font-family: sans-serif; padding: 40px; max-width: 800px; margin: 0 auto; line-height: 1.6; background-color: #f4f4f9; }}
+                    h2 {{ color: #333; border-bottom: 1px solid #ccc; padding-bottom: 10px; }}
+                    div.content {{ white-space: pre-wrap; font-size: 16px; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
+                </style>
+            </head>
+            <body>
+                <h2>{doc.name}</h2>
+                <div class="content">{doc.text}</div>
+            </body>
+        </html>
+        """
+        return HttpResponse(html_content, content_type='text/html; charset=utf-8')
 
 def _success(message: str, data: dict, path: str) -> JsonResponse:
     return JsonResponse(

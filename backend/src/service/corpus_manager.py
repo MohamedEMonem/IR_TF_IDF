@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 from threading import RLock
@@ -38,40 +39,69 @@ class CorpusManager:
         if path.suffix.lower() == ".pdf":
             return extract_pdf_text(path)
         return path.read_text(encoding="utf-8", errors="ignore")
+    
+    @staticmethod
+    def _stream_articles(path: Path):
+        """Yields articles one by one to keep RAM usage near zero."""
+        if path.suffix.lower() == '.pdf':
+            # PDFs must still be extracted all at once
+            text = extract_pdf_text(path).strip()
+            if text:
+                yield text
+            return
+
+        # For massive text files, read line-by-line!
+        with path.open('r', encoding='utf-8', errors='ignore') as f:
+            current_article = []
+            for line in f:
+                # If we hit a new @@ tag, yield the completed article
+                if line.startswith('@@') and current_article:
+                    yield "".join(current_article).strip()
+                    current_article = [line]
+                else:
+                    current_article.append(line)
+            
+            # Yield the final article at the end of the file
+            if current_article:
+                yield "".join(current_article).strip()
+
 
     def _load_documents(self) -> List[DocumentRecord]:
         records: List[DocumentRecord] = []
-        for doc_id, path in enumerate(self._load_text_paths(), start=1):
-            try:
-                text = self._read_document_text(path).strip()
-            except (OSError, RuntimeError):
-                continue
+        doc_id_counter = 1
 
-            if not text:
-                continue
+        for path in self._load_text_paths():
+            for article_text in self._stream_articles(path):
+                if not article_text:
+                    continue
 
-            tokens = tokenize(text)
-            term_counts = dict(Counter(tokens))
-            length = len(tokens)
-            
-            # 1. Nuke the heavy token list from memory instantly
-            del tokens 
-
-            records.append(
-                DocumentRecord(
-                    doc_id=doc_id,
-                    path=path.relative_to(Path(__file__).resolve().parents[3]).as_posix(),
-                    name=path.name,
-                    text=text,
-                    term_counts=term_counts,
-                    length=length,
-                )
-            )
-            
-            # 2. Force the garbage collector to run every 50 documents
-            if doc_id % 50 == 0:
-                gc.collect()
+                # MEMORY SAVER: sys.intern() forces Python to share memory for identical 
+                # words instead of creating hundreds of thousands of duplicate strings.
+                tokens = [sys.intern(t) for t in tokenize(article_text)]
                 
+                if not tokens:
+                    continue
+                    
+                term_counts = dict(Counter(tokens))
+                length = len(tokens)
+                
+                # Nuke the temporary list from RAM
+                del tokens 
+
+                records.append(
+                    DocumentRecord(
+                        doc_id=doc_id_counter,
+                        path=path.relative_to(Path(__file__).resolve().parents[3]).as_posix(),
+                        name=f"{path.name} (Article {doc_id_counter})",
+                        text=article_text,
+                        term_counts=term_counts,
+                        length=length,
+                    )
+                )
+                
+                # CPU FIX: Removed gc.collect() entirely!
+                doc_id_counter += 1
+
         return records
 
     @staticmethod
@@ -153,10 +183,7 @@ class CorpusManager:
 
             # 3. Serialize and save the new cache to disk
             try:
-                # Write to a temporary file first
-                tmp_cache_file = cache_file.with_suffix('.tmp')
-                
-                with tmp_cache_file.open("wb") as f:
+                with cache_file.open("wb") as f:
                     pickle.dump({
                         "fingerprint": current_fingerprint,
                         "documents": self._documents,
@@ -164,12 +191,7 @@ class CorpusManager:
                         "idf": self._idf,
                         "vectors": self._vectors,
                     }, f, protocol=pickle.HIGHEST_PROTOCOL)
-                
-                # Atomic rename: instantly replaces the old file
-                # This guarantees we NEVER get an EOFError again
-                tmp_cache_file.replace(cache_file)
-                print("💾 Saved new corpus index to cache perfectly.")
-                
+                print("💾 Saved new corpus index to cache.")
             except OSError as e:
                 print(f"❌ Warning: Failed to write cache to disk: {e}")
                 
