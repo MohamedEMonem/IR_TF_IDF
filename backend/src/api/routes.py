@@ -33,6 +33,30 @@ class RankRequestHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps(self._success("Corpus metadata", self.ranker.get_metadata())).encode("utf-8"))
             return
 
+        # --- ADD THIS NEW ROUTE TO OPEN DOCUMENTS ---
+        if self.path.startswith("/api/document/"):
+            try:
+                # Extract the doc_id from the URL (e.g., /api/document/465)
+                doc_id_str = self.path.split("/")[-1]
+                target_doc_id = int(doc_id_str)
+                
+                # Find the document inside your CorpusManager
+                all_docs = self.ranker._corpus_manager.get_documents()
+                document = next((d for d in all_docs if d.doc_id == target_doc_id), None)
+                
+                if document:
+                    payload = {
+                        "doc_id": document.doc_id,
+                        "name": document.name,
+                        "path": document.path,
+                        "text": document.text # Returns the full article text
+                    }
+                    self._set_headers(200)
+                    self.wfile.write(json.dumps(self._success("Document retrieved", payload)).encode("utf-8"))
+                    return
+            except ValueError:
+                pass # Invalid integer, drop down to the 404 below
+
         self._set_headers(404)
         self.wfile.write(json.dumps(self._failure("Not found")).encode("utf-8"))
 
