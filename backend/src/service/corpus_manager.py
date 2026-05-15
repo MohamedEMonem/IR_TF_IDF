@@ -145,14 +145,14 @@ class CorpusManager:
     def _build_vectors(documents: List[DocumentRecord], idf: Dict[str, float]) -> List[Dict[str, object]]:
         indexed_documents: List[Dict[str, object]] = []
         for document in documents:
+            # We ONLY compute this to get the vector norm, then we throw the heavy dicts away!
             tf = compute_tf(document.term_counts, document.length)
             vector = {term: tf_value * idf.get(term, 0.0) for term, tf_value in tf.items()}
             indexed_documents.append(
                 {
                     "document": document,
-                    "vector": vector,
-                    "norm": vector_norm(vector),
-                    "tf": tf,
+                    "norm": vector_norm(vector), 
+                    # DELTED "tf" and "vector" to save gigabytes of RAM!
                 }
             )
         return indexed_documents

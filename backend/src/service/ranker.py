@@ -57,7 +57,7 @@ class Ranker:
         query_info = self.explain_query(query)
         query_vector = query_info.vector
         
-        # 1. OPTIMIZATION: Convert to set once for fast lookups
+        # 1. Convert to set once for fast lookups
         query_terms_set = set(query_info.tokens) 
         idf = self._corpus_manager.get_idf()
 
@@ -65,29 +65,44 @@ class Ranker:
         for entry in self._corpus_manager.get_indexed_documents():
             document = entry["document"]
             
-            # 2. OPTIMIZATION: Find matched terms BEFORE doing heavy math
+            # 2. Find matched terms BEFORE doing heavy math
             matched_terms_set = query_terms_set.intersection(document.term_counts)
             
-            # 3. BIGGEST FIX: If the document doesn't have the word, SKIP IT completely!
+            # 3. If the document doesn't have the word, SKIP IT completely!
             if not matched_terms_set:
                 continue 
                 
-            # If it passed the check, now we do the heavy calculations
+            # 4. Do the math ON THE FLY to save RAM
             matched_terms = sorted(matched_terms_set)
-            score = cosine_similarity(query_vector, entry["vector"])
+            dot_product = 0.0
+            matched_details = []
             
-            matched_details = [
-                MatchedTerm(
-                    term=term,
-                    doc_tf=entry["tf"].get(term, 0.0),
-                    doc_idf=idf.get(term, 0.0),
-                    doc_tfidf=entry["vector"].get(term, 0.0),
-                    query_tf=query_info.tf.get(term, 0.0),
-                    query_idf=idf.get(term, 0.0),
-                    query_tfidf=query_vector.get(term, 0.0),
+            for term in matched_terms:
+                # Calculate doc stats instantly (Lightweight & Fast)
+                doc_tf = document.term_counts[term] / document.length
+                doc_idf = idf.get(term, 0.0)
+                doc_tfidf = doc_tf * doc_idf
+                
+                # Add to dot product for the final score
+                query_tfidf = query_vector.get(term, 0.0)
+                dot_product += (query_tfidf * doc_tfidf)
+                
+                # Build details for the frontend
+                matched_details.append(
+                    MatchedTerm(
+                        term=term, 
+                        doc_tf=doc_tf, 
+                        doc_idf=doc_idf, 
+                        doc_tfidf=doc_tfidf,
+                        query_tf=query_info.tf.get(term, 0.0), 
+                        query_idf=doc_idf, 
+                        query_tfidf=query_tfidf,
+                    )
                 )
-                for term in matched_terms
-            ]
+
+            # Fast Cosine Similarity math: Dot product / (query_norm * doc_norm)
+            doc_norm = entry["norm"]
+            score = dot_product / (query_info.norm * doc_norm) if query_info.norm and doc_norm else 0.0
 
             ranked_documents.append(
                 RankedDocument(
@@ -96,7 +111,7 @@ class Ranker:
                     name=document.name,
                     score=score,
                     doc_length=document.length,
-                    doc_norm=entry["norm"],
+                    doc_norm=doc_norm,
                     snippet=build_snippet(document.text, list(query_terms_set)),
                     matched_terms=matched_terms,
                     matched_details=matched_details,
