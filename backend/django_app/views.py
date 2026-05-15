@@ -109,6 +109,21 @@ def _save_uploaded_file(uploaded_file: UploadedFile) -> dict:
         "size": uploaded_file.size,
     }
 
+def status_view(request: HttpRequest) -> JsonResponse:
+    """Returns the current background processing status."""
+    if request.method != "GET":
+        return _failure("Method not allowed", request.path, status=405)
+
+    is_indexing = CORPUS_MANAGER.is_indexing
+    
+    return _success(
+        "System status retrieved", 
+        {
+            "is_indexing": is_indexing,
+            "status": "indexing" if is_indexing else "ready"
+        }, 
+        request.path
+    )
 
 @csrf_exempt
 def upload_view(request: HttpRequest) -> JsonResponse:
