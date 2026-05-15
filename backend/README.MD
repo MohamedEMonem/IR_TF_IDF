@@ -661,6 +661,24 @@ Behavior:
 - Returns `405` if the request method is not `POST`
 - Returns `500` if file save fails
 
+### `GET /api/document/{doc_id}`
+
+Retrieves a specific document by its ID.
+Response includes the document's metadata and full text:
+
+response data:
+
+HTML
+
+```json
+{
+  "doc_id": 42,
+  "name": "example.txt",
+  "path": "corpus/coca/example.txt",
+  "text": "Full original text of the document goes here..."
+}
+```
+
 ## Corpus Scope
 
 The backend reads only these plain-text sources:
