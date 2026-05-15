@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from uuid import uuid4
+import threading
 
 from django.core.files.uploadedfile import UploadedFile
 from django.http import HttpRequest, JsonResponse
@@ -125,15 +126,21 @@ def upload_view(request: HttpRequest) -> JsonResponse:
     except ValueError as exc:
         return _failure(str(exc), request.path, status=400)
     except OSError as exc:
-        # Pass the actual error string so you aren't guessing!
         return _failure(f"Failed to save uploaded file: {str(exc)}", request.path, status=500)
 
-    CORPUS_MANAGER.refresh(force_rebuild=True)
+    # --- THE FIX: Start indexing in the background! ---
+    indexing_thread = threading.Thread(
+        target=CORPUS_MANAGER.refresh, 
+        kwargs={"force_rebuild": True}
+    )
+    indexing_thread.start()
+
+    # Immediately return success to the frontend without waiting for the thread to finish
     return _success(
-        "Files uploaded and corpus refreshed",
+        "Files uploaded successfully! Indexing is running in the background.",
         {
             "saved_files": saved_files,
-            "corpus": CORPUS_MANAGER.get_metadata(),
+            "corpus": "Update in progress... check /api/meta in a few seconds."
         },
         request.path,
     )
