@@ -1,10 +1,21 @@
 import { useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useGetStatusQuery } from "../redux/api/searchApi";
 
 const Header = () => {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
+  const { data: statusData } = useGetStatusQuery(undefined, {
+    pollingInterval: 2000,
+  });
 
+  const isIndexing = statusData?.data.is_indexing;
+  const backendStatus = statusData?.data.status;
+  const statusText = statusData
+    ? isIndexing
+      ? "Indexing"
+      : (backendStatus ?? "Indexed")
+    : "Idle";
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const trimmed = query.trim();
@@ -18,9 +29,9 @@ const Header = () => {
 
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
           <div className="flex items-center gap-6 py-3">
-            <a
+            <Link
               className="group relative cursor-pointer animate-fade-in-left"
-              href="/"
+              to="/"
               data-discover="true"
               title="Home"
               aria-label="Home"
@@ -53,7 +64,7 @@ const Header = () => {
                   <div className="dot-delay-4 size-2 rounded-full bg-[#34a853] animate-pulse" />
                 </div>
               </div>
-            </a>
+            </Link>
 
             <form
               onSubmit={handleSubmit}
@@ -138,9 +149,9 @@ const Header = () => {
             </form>
 
             <div className="flex items-center gap-3 animate-fade-in-right">
-              <a
+              <Link
                 className="group rounded-full p-2 transition-all duration-200 hover:scale-110 hover:bg-linear-to-br hover:from-blue-50 hover:to-purple-50"
-                href="/upload"
+                to="/upload"
                 data-discover="true"
                 title="Upload document"
                 aria-label="Upload document"
@@ -161,13 +172,52 @@ const Header = () => {
                   <polyline points="17 8 12 3 7 8" />
                   <line x1="12" x2="12" y1="3" y2="15" />
                 </svg>
-              </a>
+              </Link>
 
-              <div className="relative">
-                <div className="flex size-8 cursor-pointer items-center justify-center rounded-full bg-linear-to-br from-[#4285f4] to-[#34a853] text-sm font-medium text-white shadow-md ring-2 ring-white transition-transform duration-200 hover:scale-110 hover:ring-blue-200">
-                  U
+              <div className="flex items-center gap-3">
+                <div
+                  title={backendStatus ?? ""}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full animate-fade-in border ${
+                    isIndexing
+                      ? "bg-yellow-50 border-yellow-100"
+                      : statusData
+                        ? "bg-gradient-to-r from-white to-green-50 border-green-100"
+                        : "bg-gray-50 border-gray-100"
+                  }`}
+                >
+                  {isIndexing ? (
+                    <div className="w-4 h-4 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className={`lucide lucide-circle-check size-4 ${
+                        statusData ? "text-green-600" : "text-gray-400"
+                      }`}
+                    >
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <path d="m9 12 2 2 4-4"></path>
+                    </svg>
+                  )}
+                  <span
+                    className={`text-xs font-medium ${isIndexing ? "text-yellow-700" : statusData ? "text-green-700" : "text-gray-500"}`}
+                  >
+                    {statusText}
+                  </span>
                 </div>
-                <div className="absolute bottom-0 right-0 size-2.5 animate-pulse rounded-full border-2 border-white bg-green-500" />
+                <div className="relative">
+                  <div className="size-8 rounded-full bg-gradient-to-br from-[#4285f4] to-[#34a853] flex items-center justify-center text-white text-sm font-medium cursor-pointer hover:scale-110 transition-transform duration-200 shadow-md ring-2 ring-white hover:ring-blue-200">
+                    U
+                  </div>
+                  <div className="absolute bottom-0 right-0 size-2.5 bg-green-500 rounded-full border-2 border-white animate-pulse"></div>
+                </div>
               </div>
             </div>
           </div>

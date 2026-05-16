@@ -65,6 +65,13 @@ export const searchApi = createApi({
       transformResponse: (response: ApiEnvelope<DocumentResponse> | Blob) =>
         response instanceof Blob ? response : response.data,
     }),
+
+    getStatus: builder.query<
+      { response: ApiEnvelope<{ is_indexing: boolean; status: string }> },
+      void
+    >({
+      query: () => "/status",
+    }),
   }),
 });
 
@@ -74,4 +81,5 @@ export const {
   useRankDocumentsMutation,
   useUploadDocumentsMutation,
   useGetDocumentQuery,
+  useGetStatusQuery,
 } = searchApi;
