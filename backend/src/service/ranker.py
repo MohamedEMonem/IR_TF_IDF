@@ -1,0 +1,159 @@
+from __future__ import annotations
+
+import math
+from collections import Counter
+from time import perf_counter
+from typing import Dict, List
+
+from ..model import MatchedTerm, QueryAnalysis, RankedDocument, RankResponse
+from ..utils.text import build_snippet
+from ..utils.tokenizer import tokenize
+from ..utils.vector import compute_tf, cosine_similarity, vector_norm
+from .corpus_manager import CorpusManager
+
+
+class Ranker:
+    def __init__(self, corpus_manager: CorpusManager) -> None:
+        self._corpus_manager = corpus_manager
+
+    def explain_query(self, query: str) -> QueryAnalysis:
+        tokens = tokenize(query)
+        counts = Counter(tokens)
+        tf = compute_tf(dict(counts), len(tokens))
+        idf = self._corpus_manager.get_idf()
+        vector = {term: tf_value * idf.get(term, 0.0) for term, tf_value in tf.items()}
+        norm = vector_norm(vector)
+
+        details = []
+        total_docs = len(self._corpus_manager.get_documents())
+        for term in sorted(counts):
+            df = self._corpus_manager.get_document_frequency().get(term, 0)
+            term_idf = idf.get(term, math.log((1 + total_docs) / 1) + 1.0)
+            term_tf = tf.get(term, 0.0)
+            details.append(
+                {
+                    "term": term,
+                    "count": counts[term],
+                    "tf": term_tf,
+                    "df": df,
+                    "idf": term_idf,
+                    "tfidf": term_tf * term_idf,
+                }
+            )
+
+        return QueryAnalysis(
+            query=query,
+            tokens=tokens,
+            term_counts=dict(counts),
+            tf=tf,
+            vector=vector,
+            norm=norm,
+            details=details,
+        )
+
+    def rank(self, query: str, page: int = 1, page_size: int = 10) -> RankResponse:
+        started_at = perf_counter()
+        query_info = self.explain_query(query)
+        query_vector = query_info.vector
+        
+        # 1. Convert to set once for fast lookups
+        query_terms_set = set(query_info.tokens) 
+        idf = self._corpus_manager.get_idf()
+
+        ranked_documents: List[RankedDocument] = []
+        for entry in self._corpus_manager.get_indexed_documents():
+            document = entry["document"]
+            
+            # 2. Find matched terms BEFORE doing heavy math
+            matched_terms_set = query_terms_set.intersection(document.term_counts)
+            
+            # 3. If the document doesn't have the word, SKIP IT completely!
+            if not matched_terms_set:
+                continue 
+                
+            # 4. Do the math ON THE FLY to save RAM
+            matched_terms = sorted(matched_terms_set)
+            dot_product = 0.0
+            matched_details = []
+            
+            for term in matched_terms:
+                # Calculate doc stats instantly (Lightweight & Fast)
+                doc_tf = document.term_counts[term] / document.length
+                doc_idf = idf.get(term, 0.0)
+                doc_tfidf = doc_tf * doc_idf
+                
+                # Add to dot product for the final score
+                query_tfidf = query_vector.get(term, 0.0)
+                dot_product += (query_tfidf * doc_tfidf)
+                
+                # Build details for the frontend
+                matched_details.append(
+                    MatchedTerm(
+                        term=term, 
+                        doc_tf=doc_tf, 
+                        doc_idf=doc_idf, 
+                        doc_tfidf=doc_tfidf,
+                        query_tf=query_info.tf.get(term, 0.0), 
+                        query_idf=doc_idf, 
+                        query_tfidf=query_tfidf,
+                    )
+                )
+
+            # Fast Cosine Similarity math: Dot product / (query_norm * doc_norm)
+            doc_norm = entry["norm"]
+            score = dot_product / (query_info.norm * doc_norm) if query_info.norm and doc_norm else 0.0
+
+            ranked_documents.append(
+                RankedDocument(
+                    doc_id=document.doc_id,
+                    path=document.path,
+                    name=document.name,
+                    score=score,
+                    doc_length=document.length,
+                    doc_norm=doc_norm,
+                    snippet=build_snippet(document.text, list(query_terms_set)),
+                    matched_terms=matched_terms,
+                    matched_details=matched_details,
+                )
+            )
+
+        ranked_documents.sort(key=lambda item: item.score, reverse=True)
+        
+        total_matches = len(ranked_documents)
+        total_pages = math.ceil(total_matches / page_size) if total_matches > 0 else 1
+        
+        if page > total_pages:
+            page = total_pages
+            
+        start_idx = (page - 1) * page_size
+        end_idx = start_idx + page_size
+        paginated_results = ranked_documents[start_idx:end_idx]
+
+        return RankResponse(
+            query={
+                "query": query_info.query,
+                "tokens": query_info.tokens,
+                "term_counts": query_info.term_counts,
+                "tf": query_info.tf,
+                "vector": query_info.vector,
+                "norm": query_info.norm,
+                "details": query_info.details,
+            },
+            corpus={
+                "total_documents": len(self._corpus_manager.get_documents()),
+                "unique_terms": len(idf),
+            },
+            pagination={
+                "page": page,
+                "page_size": page_size,
+                "total_matches": total_matches,
+                "total_pages": total_pages,
+                "has_next": page < total_pages,
+                "has_prev": page > 1,
+            },
+            results=paginated_results,
+            rank_time_ms=(perf_counter() - started_at) * 1000.0,
+        )
+
+    def get_metadata(self) -> Dict[str, object]:
+        return self._corpus_manager.get_metadata()

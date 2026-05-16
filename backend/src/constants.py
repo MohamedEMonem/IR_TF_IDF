@@ -1,0 +1,53 @@
+from __future__ import annotations
+
+import re
+
+TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
+DEFAULT_TOP_K = 10
+
+STOPWORDS = {
+    "a",
+    "an",
+    "and",
+    "are",
+    "as",
+    "at",
+    "be",
+    "but",
+    "by",
+    "for",
+    "from",
+    "had",
+    "has",
+    "have",
+    "he",
+    "her",
+    "his",
+    "i",
+    "in",
+    "is",
+    "it",
+    "its",
+    "me",
+    "my",
+    "not",
+    "of",
+    "on",
+    "or",
+    "our",
+    "she",
+    "that",
+    "the",
+    "their",
+    "them",
+    "there",
+    "they",
+    "this",
+    "to",
+    "was",
+    "we",
+    "were",
+    "with",
+    "you",
+    "your",
+}
