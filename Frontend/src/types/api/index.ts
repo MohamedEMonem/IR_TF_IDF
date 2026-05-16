@@ -8,6 +8,8 @@ export type {
   RankCorpusSummary,
   RankRequest,
   RankResponse,
+  Pagination,
+  RankResponseWithPagination,
   RankedDocument,
 } from "./rank";
 export type { DocumentApiResponse, DocumentResponse } from "./document";

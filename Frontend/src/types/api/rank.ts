@@ -1,6 +1,8 @@
 export type RankRequest = {
   query: string;
   top_k?: number;
+  page?: number;
+  page_size?: number;
 };
 
 export type QueryDetail = {
@@ -55,4 +57,18 @@ export type RankResponse = {
   corpus: RankCorpusSummary;
   results: RankedDocument[];
   rank_time_ms: number;
+};
+
+export type Pagination = {
+  page: number;
+  page_size: number;
+  total_matches: number;
+  total_pages: number;
+  has_next: boolean;
+  has_prev: boolean;
+};
+
+// extend RankResponse with optional pagination
+export type RankResponseWithPagination = RankResponse & {
+  pagination?: Pagination;
 };
