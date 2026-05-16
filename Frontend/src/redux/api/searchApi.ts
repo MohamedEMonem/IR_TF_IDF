@@ -10,8 +10,7 @@ import type {
   UploadResponse,
 } from "../../types/api";
 
-const baseUrl =
-  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api";
+const baseUrl = import.meta.env.VITE_API_BASE_URL ?? "/api";
 
 export const searchApi = createApi({
   reducerPath: "searchApi",
@@ -66,6 +65,13 @@ export const searchApi = createApi({
       transformResponse: (response: ApiEnvelope<DocumentResponse> | Blob) =>
         response instanceof Blob ? response : response.data,
     }),
+
+    getStatus: builder.query<
+      { response: ApiEnvelope<{ is_indexing: boolean; status: string }> },
+      void
+    >({
+      query: () => "/status",
+    }),
   }),
 });
 
@@ -75,4 +81,5 @@ export const {
   useRankDocumentsMutation,
   useUploadDocumentsMutation,
   useGetDocumentQuery,
+  useGetStatusQuery,
 } = searchApi;
