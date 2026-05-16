@@ -1,5 +1,11 @@
 import { Link } from "react-router-dom";
-import { useCallback, useState, type ChangeEvent, type DragEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useState,
+  type ChangeEvent,
+  type DragEvent,
+} from "react";
 import { useUploadDocumentsMutation } from "../redux/api/searchApi";
 import type { UploadedFileInfo } from "../types/api/upload";
 
@@ -55,11 +61,13 @@ function UploadArea() {
   const [successFiles, setSuccessFiles] = useState<UploadedFileInfo[] | null>(
     null,
   );
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [showInput, setShowInput] = useState(true);
   const [uploadDocuments, { isLoading, data }] = useUploadDocumentsMutation();
   console.log("data", data);
-  
+
   const MAX_BYTES = 10 * 1024 * 1024; // 10MB
-  const allowedExt = [".pdf", ".txt"];
+  const allowedExt = [".pdf", ".txt", ".png", ".jpg", ".jpeg", ".gif"];
 
   const validateFiles = useCallback((files: FileList | null) => {
     setError(null);
@@ -73,7 +81,9 @@ function UploadArea() {
       const name = f.name.toLowerCase();
       const ok = allowedExt.some((ext) => name.endsWith(ext));
       if (!ok) {
-        setError("Unsupported file type. Only .pdf and .txt allowed.");
+        setError(
+          "Unsupported file type. Only .pdf, .txt or image files allowed.",
+        );
         return null;
       }
       if (f.size > MAX_BYTES) {
@@ -95,11 +105,17 @@ function UploadArea() {
         const resp = await uploadDocuments(form).unwrap();
         setSuccessFiles(resp.saved_files ?? null);
         setSelected([]);
+        // after successful upload we can clear preview and restore input
+        if (previewUrl) {
+          URL.revokeObjectURL(previewUrl);
+          setPreviewUrl(null);
+        }
+        setShowInput(true);
       } catch (err: any) {
         setError(err?.data?.message || err?.message || "Upload failed.");
       }
     },
-    [uploadDocuments],
+    [uploadDocuments, previewUrl],
   );
 
   const handleInput = useCallback(
@@ -107,9 +123,19 @@ function UploadArea() {
       const files = validateFiles(e.target.files);
       if (!files) return;
       setSelected(files);
+      // create preview for first image file and hide input
+      const img = files.find((f) => f.type.startsWith("image/"));
+      if (img) {
+        try {
+          // revoke previous preview if exists
+          if (previewUrl) URL.revokeObjectURL(previewUrl);
+        } catch {}
+        setPreviewUrl(URL.createObjectURL(img));
+        setShowInput(false);
+      }
       void doUpload(files);
     },
-    [validateFiles, doUpload],
+    [validateFiles, doUpload, previewUrl],
   );
 
   const handleDrop = useCallback(
@@ -118,10 +144,29 @@ function UploadArea() {
       const files = validateFiles(e.dataTransfer.files);
       if (!files) return;
       setSelected(files);
+      const img = files.find((f) => f.type.startsWith("image/"));
+      if (img) {
+        try {
+          if (previewUrl) URL.revokeObjectURL(previewUrl);
+        } catch {}
+        setPreviewUrl(URL.createObjectURL(img));
+        setShowInput(false);
+      }
       void doUpload(files);
     },
-    [validateFiles, doUpload],
+    [validateFiles, doUpload, previewUrl],
   );
+
+  // cleanup preview URL on unmount
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        try {
+          URL.revokeObjectURL(previewUrl);
+        } catch {}
+      }
+    };
+  }, [previewUrl]);
 
   return (
     <div
@@ -133,45 +178,74 @@ function UploadArea() {
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleDrop}
       >
-        <input
-          type="file"
-          accept=".pdf,.txt"
-          className="hidden"
-          id="file-upload"
-          onChange={handleInput}
-        />
-        <label htmlFor="file-upload" className="block cursor-pointer">
-          <div className="relative border-2 border-dashed border-[#dadce0] rounded-3xl p-16 bg-white hover:bg-gradient-to-br hover:from-blue-50/30 hover:to-purple-50/30 hover:border-[#4285f4]/40 transition-all duration-300 group-hover:shadow-2xl">
-            <div className="flex flex-col items-center gap-6">
-              <div className="p-6 bg-gradient-to-br from-purple-50 via-pink-50 to-orange-50 rounded-full group-hover:scale-110 group-hover:shadow-xl transition-all duration-300">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="lucide lucide-upload size-16 text-[#4285f4]"
-                >
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                  <polyline points="17 8 12 3 7 8"></polyline>
-                  <line x1="12" x2="12" y1="3" y2="15"></line>
-                </svg>
+        {showInput && (
+          <>
+            <input
+              type="file"
+              accept=".pdf,.txt,image/*"
+              className="hidden"
+              id="file-upload"
+              onChange={handleInput}
+            />
+            <label htmlFor="file-upload" className="block cursor-pointer">
+              <div className="relative border-2 border-dashed border-[#dadce0] rounded-3xl p-16 bg-white hover:bg-gradient-to-br hover:from-blue-50/30 hover:to-purple-50/30 hover:border-[#4285f4]/40 transition-all duration-300 group-hover:shadow-2xl">
+                <div className="flex flex-col items-center gap-6">
+                  <div className="p-6 bg-gradient-to-br from-purple-50 via-pink-50 to-orange-50 rounded-full group-hover:scale-110 group-hover:shadow-xl transition-all duration-300">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="lucide lucide-upload size-16 text-[#4285f4]"
+                    >
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                      <polyline points="17 8 12 3 7 8"></polyline>
+                      <line x1="12" x2="12" y1="3" y2="15"></line>
+                    </svg>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-semibold text-[#202124] mb-2">
+                      Click to upload or drag and drop
+                    </p>
+                    <p className="text-base text-[#70757a]">
+                      PDF, TXT or image files (Max 10MB)
+                    </p>
+                  </div>
+                </div>
               </div>
-              <div className="text-center">
-                <p className="text-2xl font-semibold text-[#202124] mb-2">
-                  Click to upload or drag and drop
-                </p>
-                <p className="text-base text-[#70757a]">
-                  PDF or TXT files only (Max 10MB)
-                </p>
-              </div>
+            </label>
+          </>
+        )}
+
+        {previewUrl && (
+          <div className="mt-4 text-center">
+            <img
+              src={previewUrl}
+              alt="preview"
+              className="mx-auto rounded-lg shadow max-h-64 object-contain"
+            />
+            <div className="mt-2">
+              <button
+                type="button"
+                className="px-3 py-1 bg-gray-100 rounded text-sm hover:bg-gray-200"
+                onClick={() => {
+                  try {
+                    if (previewUrl) URL.revokeObjectURL(previewUrl);
+                  } catch {}
+                  setPreviewUrl(null);
+                  setShowInput(true);
+                }}
+              >
+                Remove image
+              </button>
             </div>
           </div>
-        </label>
+        )}
 
         <div className="mt-4 text-sm">
           {isLoading && <div className="text-blue-600">Uploading...</div>}
