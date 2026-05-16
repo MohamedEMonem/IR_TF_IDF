@@ -191,14 +191,12 @@ def upload_view(request: HttpRequest) -> JsonResponse:
     except OSError as exc:
         return _failure(f"Failed to save uploaded file: {str(exc)}", request.path, status=500)
 
-    # Start indexing in the background
     indexing_thread = threading.Thread(
         target=CORPUS_MANAGER.refresh, 
         kwargs={"force_rebuild": False},
     )
     indexing_thread.start()
 
-    # Immediately return success to the frontend
     return _success(
         "Files uploaded successfully! Indexing is running in the background.",
         {
@@ -216,11 +214,8 @@ def rank_view(request: HttpRequest) -> JsonResponse:
     
     Input (JSON Body):
     - query (str): The search phrase (Required).
-    - top_k (int): Number of top results to return (Optional, defaults to 5).
-    
-    Output (JSON):
-    - 200 OK: Ranked results list, snippets, matched terms, and query vectors.
-    - 400 Bad Request: Invalid JSON body or empty query.
+    - page (int): The page number (Optional, defaults to 1).
+    - page_size (int): Number of results per page (Optional, defaults to 10).
     """
     if request.method != "POST":
         return _failure("Method not allowed", request.path, status=405)
@@ -231,9 +226,15 @@ def rank_view(request: HttpRequest) -> JsonResponse:
         return _failure("Invalid JSON body", request.path, status=400)
 
     query = str(payload.get("query", "")).strip()
-    top_k = int(payload.get("top_k", DEFAULT_TOP_K))
+    
+    page = int(payload.get("page", 1))
+    page_size = int(payload.get("page_size", 10))
+    
+    if page < 1: page = 1
+    if page_size < 1: page_size = 10
+
     if not query:
         return _failure("Query is required", request.path, status=400)
 
-    result = serialize_rank_response(RANKER.rank(query, top_k=top_k))
+    result = serialize_rank_response(RANKER.rank(query, page=page, page_size=page_size))
     return _success("Ranked results", result, request.path)

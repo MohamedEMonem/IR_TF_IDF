@@ -32,5 +32,6 @@ class RankedDocument:
 class RankResponse:
     query: Dict[str, object]
     corpus: Dict[str, object]
+    pagination: Dict[str, Any]
     results: List[RankedDocument]
     rank_time_ms: float

@@ -5,7 +5,6 @@ from collections import Counter
 from time import perf_counter
 from typing import Dict, List
 
-from ..constants import DEFAULT_TOP_K
 from ..model import MatchedTerm, QueryAnalysis, RankedDocument, RankResponse
 from ..utils.text import build_snippet
 from ..utils.tokenizer import tokenize
@@ -52,7 +51,7 @@ class Ranker:
             details=details,
         )
 
-    def rank(self, query: str, top_k: int = DEFAULT_TOP_K) -> RankResponse:
+    def rank(self, query: str, page: int = 1, page_size: int = 10) -> RankResponse:
         started_at = perf_counter()
         query_info = self.explain_query(query)
         query_vector = query_info.vector
@@ -119,6 +118,17 @@ class Ranker:
             )
 
         ranked_documents.sort(key=lambda item: item.score, reverse=True)
+        
+        total_matches = len(ranked_documents)
+        total_pages = math.ceil(total_matches / page_size) if total_matches > 0 else 1
+        
+        if page > total_pages:
+            page = total_pages
+            
+        start_idx = (page - 1) * page_size
+        end_idx = start_idx + page_size
+        paginated_results = ranked_documents[start_idx:end_idx]
+
         return RankResponse(
             query={
                 "query": query_info.query,
@@ -132,9 +142,16 @@ class Ranker:
             corpus={
                 "total_documents": len(self._corpus_manager.get_documents()),
                 "unique_terms": len(idf),
-                "top_k": top_k,
             },
-            results=ranked_documents[:top_k],
+            pagination={
+                "page": page,
+                "page_size": page_size,
+                "total_matches": total_matches,
+                "total_pages": total_pages,
+                "has_next": page < total_pages,
+                "has_prev": page > 1,
+            },
+            results=paginated_results,
             rank_time_ms=(perf_counter() - started_at) * 1000.0,
         )
 
