@@ -602,16 +602,19 @@ Request body:
 
 ```json
 {
-  "query": "information retrieval",
-  "top_k": 5
+    "query": "information retrieval",
+    "page": 1,
+    "page_size": 10
 }
 ```
 
 Rules:
 
 - `query` is required.
-- `top_k` is optional.
-- If `top_k` is missing, the backend uses `DEFAULT_TOP_K`.
+- `page` is optional.
+- `page_size` is optional.
+- If `page` is missing, the backend uses `1`.
+- If `page_size` is missing, the backend uses `10`.
 - If the JSON body is invalid, the backend returns `400`.
 - If `query` is blank, the backend returns `400`.
 
