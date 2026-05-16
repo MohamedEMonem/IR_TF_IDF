@@ -2,11 +2,14 @@ import { useState } from "react";
 import SearchBar from "../Components/SearchBar";
 import Hero from "../Components/Hero";
 import { useNavigate } from "react-router-dom";
+import { useGetHealthQuery } from "../redux/api/searchApi";
 
 export default function Home() {
   const [query, setQuery] = useState("information retrieval");
   const navigate = useNavigate();
 
+  const { data } = useGetHealthQuery();
+  console.log("Health check data:", data);
   const handleSearch = (q: string) => {
     const term = q || query;
     setQuery(term);

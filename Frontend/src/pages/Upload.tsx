@@ -10,6 +10,7 @@ import {
   useUploadDocumentsMutation,
   useGetStatusQuery,
 } from "../redux/api/searchApi";
+import { useUploadDocumentsMutation } from "../redux/api/searchApi";
 import type { UploadedFileInfo } from "../types/api/upload";
 
 const Upload = () => {
@@ -101,6 +102,37 @@ function UploadArea() {
     },
     [MAX_BYTES, allowedExt],
   );
+  const [uploadDocuments, { isLoading, data }] = useUploadDocumentsMutation();
+  console.log("data", data);
+
+  const MAX_BYTES = 10 * 1024 * 1024; // 10MB
+  const allowedExt = [".pdf", ".txt", ".png", ".jpg", ".jpeg", ".gif"];
+
+  const validateFiles = useCallback((files: FileList | null) => {
+    setError(null);
+    if (!files || files.length === 0) {
+      setError("No files provided.");
+      return null;
+    }
+
+    const arr: File[] = Array.from(files);
+    for (const f of arr) {
+      const name = f.name.toLowerCase();
+      const ok = allowedExt.some((ext) => name.endsWith(ext));
+      if (!ok) {
+        setError(
+          "Unsupported file type. Only .pdf, .txt or image files allowed.",
+        );
+        return null;
+      }
+      if (f.size > MAX_BYTES) {
+        setError("File too large. Max 10MB per file.");
+        return null;
+      }
+    }
+
+    return arr;
+  }, []);
 
   const doUpload = useCallback(
     async (files: File[]) => {
@@ -132,6 +164,12 @@ function UploadArea() {
           (err as any)?.message ||
           "Upload failed.";
         setError(msg);
+          URL.revokeObjectURL(previewUrl);
+          setPreviewUrl(null);
+        }
+        setShowInput(true);
+      } catch (err: any) {
+        setError(err?.data?.message || err?.message || "Upload failed.");
       }
     },
     [uploadDocuments, previewUrl],
@@ -170,6 +208,7 @@ function UploadArea() {
         } catch (e) {
           /* ignore */
         }
+        } catch {}
         setPreviewUrl(URL.createObjectURL(img));
         setShowInput(false);
       }
@@ -191,6 +230,7 @@ function UploadArea() {
         } catch (e) {
           /* ignore */
         }
+        } catch {}
         setPreviewUrl(URL.createObjectURL(img));
         setShowInput(false);
       }
@@ -208,6 +248,7 @@ function UploadArea() {
         } catch (e) {
           /* ignore */
         }
+        } catch {}
       }
     };
   }, [previewUrl]);
@@ -283,6 +324,7 @@ function UploadArea() {
                   } catch {
                     /* ignore */
                   }
+                  } catch {}
                   setPreviewUrl(null);
                   setShowInput(true);
                 }}
@@ -429,6 +471,32 @@ function UploadArea() {
                   )}
                 </>
               )}
+        <div className="mt-4 text-sm">
+          {isLoading && <div className="text-blue-600">Uploading...</div>}
+          {error && <div className="text-red-600">{error}</div>}
+          {selected.length > 0 && (
+            <div className="mt-2">
+              <strong>Selected:</strong>
+              <ul className="list-disc list-inside">
+                {selected.map((f) => (
+                  <li key={f.name}>
+                    {f.name} ({Math.round(f.size / 1024)} KB)
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {successFiles && (
+            <div className="mt-4">
+              <strong className="text-green-700">Uploaded:</strong>
+              <ul className="list-disc list-inside">
+                {successFiles.map((f) => (
+                  <li key={f.stored_name}>
+                    {f.name} ({Math.round(f.size / 1024)} KB)
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
         </div>
