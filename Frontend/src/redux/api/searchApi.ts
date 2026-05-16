@@ -15,18 +15,22 @@ const baseUrl =
 
 export const searchApi = createApi({
   reducerPath: "searchApi",
+
   baseQuery: fetchBaseQuery({ baseUrl }),
+
   endpoints: (builder) => ({
     getHealth: builder.query<HealthResponse, void>({
       query: () => "/health",
       transformResponse: (response: ApiEnvelope<HealthResponse>) =>
         response.data,
     }),
+
     getMeta: builder.query<CorpusMetadata, void>({
       query: () => "/meta",
       transformResponse: (response: ApiEnvelope<CorpusMetadata>) =>
         response.data,
     }),
+
     rankDocuments: builder.mutation<RankResponse, RankRequest>({
       query: ({ query, top_k = 10 }) => ({
         url: "/rank",
@@ -47,7 +51,7 @@ export const searchApi = createApi({
       transformResponse: (response: ApiEnvelope<UploadResponse>) =>
         response.data,
     }),
-    getDocument: builder.query<DocumentApiResponse, number>({
+    getDocument: builder.query<DocumentApiResponse | Blob, number>({
       query: (docId) => ({
         url: `/document/${docId}`,
         responseHandler: async (response) => {

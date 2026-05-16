@@ -3,7 +3,7 @@ import { classNames } from "../utils";
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode;
-  variant?: "primary" | "secondary" | "danger" | "none";
+  variant?: "primary" | "secondary" | "danger" | "lucky" | "none";
   size?: "sm" | "md" | "lg";
 }
 
@@ -17,9 +17,11 @@ export const Button = ({
   const baseStyles = "font-medium rounded transition-colors";
 
   const variantStyles = {
-    primary: "bg-indigo-600 text-white hover:bg-indigo-700",
-    secondary: "bg-gray-200 text-gray-900 hover:bg-gray-300",
-    danger: "bg-red-600 text-white hover:bg-red-700",
+    primary: "rounded bg-indigo-600 text-white hover:bg-indigo-700",
+    secondary: "rounded bg-gray-200 text-gray-900 hover:bg-gray-300",
+    danger: "rounded bg-red-600 text-white hover:bg-red-700",
+    lucky:
+      "relative bg-[#f8f9fa] text-sm font-medium px-8 py-3.5 rounded-lg hover:shadow-xl hover:bg-white border border-transparent hover:border-[#dadce0] hover:scale-105 active:scale-95 overflow-hidden transition-all duration-300 group/btn text-black",
     none: "",
   };
 
@@ -31,15 +33,27 @@ export const Button = ({
 
   return (
     <button
+      type={props.type ?? "button"}
+      aria-label={
+        variant === "lucky"
+          ? (props["aria-label"] ?? undefined)
+          : props["aria-label"]
+      }
       className={classNames(
-        baseStyles,
-        variantStyles[variant],
-        sizeStyles[size],
-        className,
+        variant === "lucky"
+          ? classNames(variantStyles.lucky, className)
+          : classNames(baseStyles, variantStyles[variant], sizeStyles[size]),
       )}
       {...props}
     >
-      {children}
+      {variant === "lucky" ? (
+        <>
+          <span className="relative z-10">{children}</span>
+          <div className="lucky-overlay absolute inset-0 opacity-0 transition-opacity duration-300 group-hover/btn:opacity-100" />
+        </>
+      ) : (
+        children
+      )}
     </button>
   );
 };
