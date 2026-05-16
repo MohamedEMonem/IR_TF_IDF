@@ -6,7 +6,7 @@ import type {
   DocumentResponse,
   HealthResponse,
   RankRequest,
-  RankResponse,
+  RankResponseWithPagination,
   UploadResponse,
 } from "../../types/api";
 
@@ -16,6 +16,15 @@ export const searchApi = createApi({
   reducerPath: "searchApi",
 
   baseQuery: fetchBaseQuery({ baseUrl }),
+  tagTypes: [
+    "Documents",
+    "Status",
+    "Meta",
+    "Health",
+    "Rank",
+    "Upload",
+    "Document",
+  ],
 
   endpoints: (builder) => ({
     getHealth: builder.query<HealthResponse, void>({
@@ -30,16 +39,20 @@ export const searchApi = createApi({
         response.data,
     }),
 
-    rankDocuments: builder.mutation<RankResponse, RankRequest>({
-      query: ({ query, top_k = 10 }) => ({
+    rankDocuments: builder.mutation<RankResponseWithPagination, RankRequest>({
+      query: ({ query, top_k = 10, page, page_size }) => ({
         url: "/rank",
         method: "POST",
         body: {
           query,
           top_k,
+          page,
+          page_size,
         },
       }),
-      transformResponse: (response: ApiEnvelope<RankResponse>) => response.data,
+      invalidatesTags: ["Rank"],
+      transformResponse: (response: ApiEnvelope<RankResponseWithPagination>) =>
+        response.data,
     }),
     uploadDocuments: builder.mutation<UploadResponse, FormData>({
       query: (body) => ({
@@ -66,10 +79,7 @@ export const searchApi = createApi({
         response instanceof Blob ? response : response.data,
     }),
 
-    getStatus: builder.query<
-      { response: ApiEnvelope<{ is_indexing: boolean; status: string }> },
-      void
-    >({
+    getStatus: builder.query<{ is_indexing: boolean; status: string }, void>({
       query: () => "/status",
     }),
   }),

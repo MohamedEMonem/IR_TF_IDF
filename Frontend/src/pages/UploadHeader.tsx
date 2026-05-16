@@ -16,10 +16,10 @@ const UploadHeader = () => {
       : (backendStatus ?? "Indexed")
     : "Idle";
 
-  // console.log("statusText :", statusText);
-  // console.log("statusData :", statusData);
-  // console.log("isIndexing :", isIndexing);
-  // console.log("backendStatus :", backendStatus);
+  console.log("statusText :", statusText);
+  console.log("statusData :", statusData);
+  console.log("isIndexing :", isIndexing);
+  console.log("backendStatus :", backendStatus);
 
   return (
     <>
