@@ -194,7 +194,7 @@ def upload_view(request: HttpRequest) -> JsonResponse:
     # Start indexing in the background
     indexing_thread = threading.Thread(
         target=CORPUS_MANAGER.refresh, 
-        kwargs={"force_rebuild": True}
+        kwargs={"force_rebuild": False},
     )
     indexing_thread.start()
 
