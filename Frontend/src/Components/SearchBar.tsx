@@ -51,11 +51,11 @@ export default function SearchBar({
           <Button
             variant="lucky"
             type="submit"
-            className={`${!searchValue && "cursor-not-allowed opacity-50"}`}
+            className={!searchValue ? "cursor-not-allowed opacity-50" : ""}
             disabled={!searchValue}
-            aria-label="Google Search"
+            aria-label="Search"
           >
-            Google Search
+            Search
           </Button>
           <LinkButton href="/upload">
             <svg
