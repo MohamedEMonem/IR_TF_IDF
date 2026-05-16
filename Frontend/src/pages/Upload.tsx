@@ -72,9 +72,8 @@ function UploadArea() {
   const [indexingPhase, setIndexingPhase] = useState<
     "idle" | "uploaded" | "indexing" | "indexed"
   >("idle");
-  const [pollStatus, setPollStatus] = useState(false);
 
-  const [uploadDocuments, { isLoading, data }] = useUploadDocumentsMutation();
+  const [uploadDocuments, { isLoading }] = useUploadDocumentsMutation();
   const validateFiles = useCallback((files: FileList | null) => {
     setError(null);
     if (!files || files.length === 0) {
@@ -125,7 +124,7 @@ function UploadArea() {
 
         setShowInput(false);
         setIndexingPhase("uploaded");
-        setPollStatus(true);
+        // setPollStatus(true);
       } catch (err: unknown) {
         const e1 = err as { data?: { message?: string }; message?: string };
         const msg = e1?.data?.message ?? e1?.message ?? "Upload failed.";
@@ -154,14 +153,15 @@ function UploadArea() {
       (statusData as { response?: { data?: { is_indexing?: boolean } } })
         ?.response?.data?.is_indexing ??
       (statusData as { data?: { is_indexing?: boolean } })?.data?.is_indexing;
+    console.log("isIndexing", isIndexing);
     if (isIndexing) {
       // defer to avoid sync setState-in-effect warning
-      setTimeout(() => setIndexingPhase("indexing"), 0);
-    } else if (!isIndexing && pollStatus) {
-      setTimeout(() => setIndexingPhase("indexed"), 0);
-      setTimeout(() => setPollStatus(false), 0);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setIndexingPhase("indexing");
+    } else if (!isIndexing) {
+      setIndexingPhase("indexed");
     }
-  }, [statusData, pollStatus]);
+  }, [statusData]);
 
   const handleInput = useCallback(
     (e: ChangeEvent<HTMLInputElement>) => {

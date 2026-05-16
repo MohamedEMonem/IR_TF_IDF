@@ -5,7 +5,7 @@ const UploadHeader = () => {
   // poll status endpoint to show global indexing state
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const { data: statusData } = useGetStatusQuery(undefined, {
-    pollingInterval: 100000,
+    pollingInterval: 2000,
   });
 
   const isIndexing = statusData?.data.is_indexing;
