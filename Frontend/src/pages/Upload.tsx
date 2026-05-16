@@ -73,7 +73,7 @@ function UploadArea() {
   const [uploadDocuments, { isLoading }] = useUploadDocumentsMutation();
 
   const MAX_BYTES = 10 * 1024 * 1024; // 10MB
-  const allowedExt = [".pdf", ".txt", ".png", ".jpg", ".jpeg", ".gif"];
+  const allowedExt = [".pdf", ".txt"];
 
   const validateFiles = useCallback(
     (files: FileList | null) => {
@@ -88,9 +88,7 @@ function UploadArea() {
         const name = f.name.toLowerCase();
         const ok = allowedExt.some((ext) => name.endsWith(ext));
         if (!ok) {
-          setError(
-            "Unsupported file type. Only .pdf, .txt or image files allowed.",
-          );
+          setError("Unsupported file type. Only .pdf, .txt files allowed.");
           return null;
         }
         if (f.size > MAX_BYTES) {
@@ -140,12 +138,14 @@ function UploadArea() {
   );
 
   // poll /api/status while pollStatus is true
-  const { data: statusData } = useGetStatusQuery();
-
+  const { data: statusData } = useGetStatusQuery(undefined, {
+    pollingInterval: 2000,
+  });
   // statusData is transformed to: { is_indexing, status }
   useEffect(() => {
     if (!statusData) return;
-    const is_indexing = Boolean(statusData?.is_indexing);
+    const is_indexing = statusData?.data?.is_indexing;
+    console.log("isIndexing: ", is_indexing);
     if (is_indexing) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setIndexingPhase("indexing");
@@ -280,7 +280,9 @@ function UploadArea() {
                 onClick={() => {
                   try {
                     if (previewUrl) URL.revokeObjectURL(previewUrl);
-                  } catch {}
+                  } catch {
+                    /* ignore */
+                  }
                   setPreviewUrl(null);
                   setShowInput(true);
                 }}
