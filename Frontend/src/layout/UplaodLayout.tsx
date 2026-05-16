@@ -1,11 +1,11 @@
 import { Outlet } from "react-router-dom";
 import Footer from "../pages/Footer";
-import UploadHeader from "../pages/uploadHeader";
+import HeaderUpload from "../pages/HeaderUpload";
 
 export default function UploadLayout() {
   return (
     <div className=" bg-white">
-      <UploadHeader />
+      <HeaderUpload />
       <Outlet />
       <Footer />
     </div>
