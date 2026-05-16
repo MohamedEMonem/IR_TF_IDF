@@ -683,6 +683,26 @@ Response `data` object (for text documents):
 }
 ```
 
+### `GET /api/status`
+
+Returns the current status of the backend, including uptime, total requests handled, and last refresh time.
+Response example:
+
+```json
+{
+  "success": true,
+  "message": "System status retrieved",
+  "data": {
+    "is_indexing": true,
+    "status": "indexing"
+  },
+  "error": null,
+  "meta": {
+    "path": "/api/status"
+  }
+}
+```
+
 ## Corpus Scope
 
 The backend reads only these plain-text sources:
@@ -751,7 +771,7 @@ services:
       - "8000:8000"
     environment:
       DJANGO_SETTINGS_MODULE: backend.django_project.settings
-      PYTHONUNBUFFERED: '1'
+      PYTHONUNBUFFERED: "1"
     volumes:
       - ./backend:/app/backend
       - ./backend/corpus:/app/corpus
