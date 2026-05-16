@@ -1,27 +1,17 @@
 import { useState } from "react";
-import {
-  useGetMetaQuery,
-  useRankDocumentsMutation,
-} from "../redux/api/searchApi";
 import SearchBar from "../Components/SearchBar";
 import Hero from "../Components/Hero";
+import { useNavigate } from "react-router-dom";
 
 export default function Home() {
   const [query, setQuery] = useState("information retrieval");
-  const {
-    data: meta,
-    isLoading: isMetaLoading,
-    isError: isMetaError,
-  } = useGetMetaQuery();
-  const [rankDocuments, { data, error }] = useRankDocumentsMutation();
+  const navigate = useNavigate();
 
   const handleSearch = (q: string) => {
     const term = q || query;
     setQuery(term);
-    void rankDocuments({ query: term, top_k: 5 });
+    navigate("/search", { state: { query: term } });
   };
-
-  const metaEntries = meta ? Object.entries(meta) : [];
 
   return (
     <div>
