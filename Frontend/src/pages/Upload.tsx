@@ -7,11 +7,13 @@ import {
   type DragEvent,
 } from "react";
 import {
-  useUploadDocumentsMutation,
   useGetStatusQuery,
+  useUploadDocumentsMutation,
 } from "../redux/api/searchApi";
-import { useUploadDocumentsMutation } from "../redux/api/searchApi";
 import type { UploadedFileInfo } from "../types/api/upload";
+
+const MAX_BYTES = 10 * 1024 * 1024; // 10MB
+const allowedExt = [".pdf", ".txt"];
 
 const Upload = () => {
   return (
@@ -42,7 +44,7 @@ const Upload = () => {
 
         <div className="text-center mb-12 animate-fade-in">
           <h1 className="text-5xl sm:text-6xl font-bold tracking-wide antialiased mb-4">
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-600 via-pink-500 to-orange-500">
+            <span className="text-transparent bg-clip-text bg-linear-to-r from-purple-600 via-pink-500 to-orange-500">
               Upload Document
             </span>
           </h1>
@@ -71,43 +73,8 @@ function UploadArea() {
     "idle" | "uploaded" | "indexing" | "indexed"
   >("idle");
   const [pollStatus, setPollStatus] = useState(false);
-  const [uploadDocuments, { isLoading }] = useUploadDocumentsMutation();
 
-  const MAX_BYTES = 10 * 1024 * 1024; // 10MB
-  const allowedExt = [".pdf", ".txt"];
-
-  const validateFiles = useCallback(
-    (files: FileList | null) => {
-      setError(null);
-      if (!files || files.length === 0) {
-        setError("No files provided.");
-        return null;
-      }
-
-      const arr: File[] = Array.from(files);
-      for (const f of arr) {
-        const name = f.name.toLowerCase();
-        const ok = allowedExt.some((ext) => name.endsWith(ext));
-        if (!ok) {
-          setError("Unsupported file type. Only .pdf, .txt files allowed.");
-          return null;
-        }
-        if (f.size > MAX_BYTES) {
-          setError("File too large. Max 10MB per file.");
-          return null;
-        }
-      }
-
-      return arr;
-    },
-    [MAX_BYTES, allowedExt],
-  );
   const [uploadDocuments, { isLoading, data }] = useUploadDocumentsMutation();
-  console.log("data", data);
-
-  const MAX_BYTES = 10 * 1024 * 1024; // 10MB
-  const allowedExt = [".pdf", ".txt", ".png", ".jpg", ".jpeg", ".gif"];
-
   const validateFiles = useCallback((files: FileList | null) => {
     setError(null);
     if (!files || files.length === 0) {
@@ -118,8 +85,9 @@ function UploadArea() {
     const arr: File[] = Array.from(files);
     for (const f of arr) {
       const name = f.name.toLowerCase();
-      const ok = allowedExt.some((ext) => name.endsWith(ext));
-      if (!ok) {
+      const isAllowedExt = allowedExt.some((ext) => name.endsWith(ext));
+      const isImage = f.type.startsWith("image/");
+      if (!isAllowedExt && !isImage) {
         setError(
           "Unsupported file type. Only .pdf, .txt or image files allowed.",
         );
@@ -138,59 +106,60 @@ function UploadArea() {
     async (files: File[]) => {
       setError(null);
       setSuccessFiles(null);
+
       try {
         const form = new FormData();
         files.forEach((f) => form.append("files", f));
         const resp = await uploadDocuments(form).unwrap();
-        setSuccessFiles(resp.saved_files ?? null);
+        setSuccessFiles(resp?.saved_files ?? null);
         setSelected([]);
-        // after successful upload we can clear preview and restore input
+
         if (previewUrl) {
           try {
             URL.revokeObjectURL(previewUrl);
-          } catch (e) {
+          } catch {
             /* ignore */
           }
           setPreviewUrl(null);
         }
-        // hide the input and show the uploaded file card
+
         setShowInput(false);
-        // mark uploaded and start polling status for indexing
         setIndexingPhase("uploaded");
         setPollStatus(true);
       } catch (err: unknown) {
-        const msg =
-          (err as any)?.data?.message ||
-          (err as any)?.message ||
-          "Upload failed.";
+        const e1 = err as { data?: { message?: string }; message?: string };
+        const msg = e1?.data?.message ?? e1?.message ?? "Upload failed.";
         setError(msg);
-          URL.revokeObjectURL(previewUrl);
+        if (previewUrl) {
+          try {
+            URL.revokeObjectURL(previewUrl);
+          } catch {
+            /* ignore */
+          }
           setPreviewUrl(null);
         }
         setShowInput(true);
-      } catch (err: any) {
-        setError(err?.data?.message || err?.message || "Upload failed.");
       }
     },
     [uploadDocuments, previewUrl],
   );
 
-  // poll /api/status while pollStatus is true
   const { data: statusData } = useGetStatusQuery(undefined, {
     pollingInterval: 2000,
   });
-  // statusData is transformed to: { is_indexing, status }
+
   useEffect(() => {
     if (!statusData) return;
-    const is_indexing = statusData?.data?.is_indexing;
-    console.log("isIndexing: ", is_indexing);
-    if (is_indexing) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setIndexingPhase("indexing");
-    } else if (!is_indexing && pollStatus) {
-      // indexing finished
-      setIndexingPhase("indexed");
-      setPollStatus(false);
+    const isIndexing =
+      (statusData as { response?: { data?: { is_indexing?: boolean } } })
+        ?.response?.data?.is_indexing ??
+      (statusData as { data?: { is_indexing?: boolean } })?.data?.is_indexing;
+    if (isIndexing) {
+      // defer to avoid sync setState-in-effect warning
+      setTimeout(() => setIndexingPhase("indexing"), 0);
+    } else if (!isIndexing && pollStatus) {
+      setTimeout(() => setIndexingPhase("indexed"), 0);
+      setTimeout(() => setPollStatus(false), 0);
     }
   }, [statusData, pollStatus]);
 
@@ -199,19 +168,18 @@ function UploadArea() {
       const files = validateFiles(e.target.files);
       if (!files) return;
       setSelected(files);
-      // create preview for first image file and hide input
+
       const img = files.find((f) => f.type.startsWith("image/"));
       if (img) {
         try {
-          // revoke previous preview if exists
           if (previewUrl) URL.revokeObjectURL(previewUrl);
-        } catch (e) {
+        } catch {
           /* ignore */
         }
-        } catch {}
         setPreviewUrl(URL.createObjectURL(img));
         setShowInput(false);
       }
+
       void doUpload(files);
     },
     [validateFiles, doUpload, previewUrl],
@@ -223,41 +191,38 @@ function UploadArea() {
       const files = validateFiles(e.dataTransfer.files);
       if (!files) return;
       setSelected(files);
+
       const img = files.find((f) => f.type.startsWith("image/"));
       if (img) {
         try {
           if (previewUrl) URL.revokeObjectURL(previewUrl);
-        } catch (e) {
+        } catch {
           /* ignore */
         }
-        } catch {}
         setPreviewUrl(URL.createObjectURL(img));
         setShowInput(false);
       }
+
       void doUpload(files);
     },
     [validateFiles, doUpload, previewUrl],
   );
 
-  // cleanup preview URL on unmount
   useEffect(() => {
     return () => {
       if (previewUrl) {
         try {
           URL.revokeObjectURL(previewUrl);
-        } catch (e) {
+        } catch {
           /* ignore */
         }
-        } catch {}
+        setPreviewUrl(null);
       }
     };
   }, [previewUrl]);
 
   return (
-    <div
-      className="max-w-2xl mx-auto animate-fade-in"
-      style={{ animationDelay: "0.2s" }}
-    >
+    <div className="max-w-2xl mx-auto animate-fade-in">
       <div
         className="relative group"
         onDragOver={(e) => e.preventDefault()}
@@ -273,9 +238,9 @@ function UploadArea() {
               onChange={handleInput}
             />
             <label htmlFor="file-upload" className="block cursor-pointer">
-              <div className="relative border-2 border-dashed border-[#dadce0] rounded-3xl p-16 bg-white hover:bg-gradient-to-br hover:from-blue-50/30 hover:to-purple-50/30 hover:border-[#4285f4]/40 transition-all duration-300 group-hover:shadow-2xl">
+              <div className="relative border-2 border-dashed border-[#dadce0] rounded-3xl p-16 bg-white hover:bg-linear-to-br hover:from-blue-50/30 hover:to-purple-50/30 hover:border-[#4285f4]/40 transition-all duration-300 group-hover:shadow-2xl">
                 <div className="flex flex-col items-center gap-6">
-                  <div className="p-6 bg-gradient-to-br from-purple-50 via-pink-50 to-orange-50 rounded-full group-hover:scale-110 group-hover:shadow-xl transition-all duration-300">
+                  <div className="p-6 bg-linear-to-br from-purple-50 via-pink-50 to-orange-50 rounded-full group-hover:scale-110 group-hover:shadow-xl transition-all duration-300">
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
                       width="24"
@@ -324,7 +289,6 @@ function UploadArea() {
                   } catch {
                     /* ignore */
                   }
-                  } catch {}
                   setPreviewUrl(null);
                   setShowInput(true);
                 }}
@@ -376,7 +340,7 @@ function UploadArea() {
                     if (previewUrl) {
                       try {
                         URL.revokeObjectURL(previewUrl);
-                      } catch (e) {
+                      } catch {
                         /* ignore */
                       }
                       setPreviewUrl(null);
@@ -432,7 +396,7 @@ function UploadArea() {
 
                   {indexingPhase === "indexed" && (
                     <>
-                      <div className="mt-6 rounded-2xl border p-6 bg-gradient-to-r from-white to-green-50 shadow-sm">
+                      <div className="mt-6 rounded-2xl border p-6 bg-linear-to-r from-white to-green-50 shadow-sm">
                         <div className="flex items-center gap-4">
                           <div className="flex-none w-10 h-10 bg-green-50 rounded-full flex items-center justify-center">
                             <svg
@@ -461,7 +425,7 @@ function UploadArea() {
                       <div className="mt-6 text-center">
                         <Link
                           to="/"
-                          className="inline-block px-8 py-3 rounded-full bg-gradient-to-r from-purple-600 to-pink-500 text-white font-medium shadow-lg hover:opacity-95"
+                          className="inline-block px-8 py-3 rounded-full bg-linear-to-r from-purple-600 to-pink-500 text-white font-medium shadow-lg hover:opacity-95"
                         >
                           Start Searching
                           <span className="ml-2">→</span>
@@ -471,34 +435,38 @@ function UploadArea() {
                   )}
                 </>
               )}
-        <div className="mt-4 text-sm">
-          {isLoading && <div className="text-blue-600">Uploading...</div>}
-          {error && <div className="text-red-600">{error}</div>}
-          {selected.length > 0 && (
-            <div className="mt-2">
-              <strong>Selected:</strong>
-              <ul className="list-disc list-inside">
-                {selected.map((f) => (
-                  <li key={f.name}>
-                    {f.name} ({Math.round(f.size / 1024)} KB)
-                  </li>
-                ))}
-              </ul>
             </div>
           )}
 
-          {successFiles && (
-            <div className="mt-4">
-              <strong className="text-green-700">Uploaded:</strong>
-              <ul className="list-disc list-inside">
-                {successFiles.map((f) => (
-                  <li key={f.stored_name}>
-                    {f.name} ({Math.round(f.size / 1024)} KB)
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+          <div className="mt-4 text-sm">
+            {isLoading && <div className="text-blue-600">Uploading...</div>}
+            {error && <div className="text-red-600">{error}</div>}
+            {selected.length > 0 && (
+              <div className="mt-2">
+                <strong>Selected:</strong>
+                <ul className="list-disc list-inside">
+                  {selected.map((f) => (
+                    <li key={f.name}>
+                      {f.name} ({Math.round(f.size / 1024)} KB)
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {successFiles && (
+              <div className="mt-4">
+                <strong className="text-green-700">Uploaded:</strong>
+                <ul className="list-disc list-inside">
+                  {successFiles.map((f) => (
+                    <li key={f.stored_name}>
+                      {f.name} ({Math.round(f.size / 1024)} KB)
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
