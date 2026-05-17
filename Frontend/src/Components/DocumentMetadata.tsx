@@ -16,34 +16,58 @@ export default function DocumentMetadata({ name, path, text }: DocumentMetadataP
     };
   }, [text]);
 
+  const hasMetadata = Boolean(parsedMetadata.docId || parsedMetadata.sourceId);
+
   return (
-    <div className="p-5 rounded-2xl border border-slate-200 bg-white shadow-xs animate-slide-up">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div className="flex-1 min-w-0">
-          <h3 className="text-sm font-semibold text-slate-800">
-            {name}
-          </h3>
-          {path && (
-            <div className="text-xs font-mono p-2.5 rounded-lg border border-slate-100 bg-slate-50 text-slate-600 mt-2 break-all max-w-full">
-              {path}
+    <section className="rounded-2xl border border-slate-200 bg-white/95 shadow-sm animate-slide-up overflow-hidden">
+      <div className="px-5 py-3 border-b border-slate-100 bg-linear-to-r from-blue-50/70 via-white to-teal-50/60">
+        <div className="flex items-center gap-2">
+          <span className="size-2 rounded-full bg-blue-500" />
+          <h2 className="text-xs uppercase tracking-[0.14em] font-bold text-slate-500">
+            Document Metadata
+          </h2>
+        </div>
+      </div>
+
+      <div className="p-5 grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-5 items-start">
+        <div className="min-w-0 space-y-3">
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">
+              Name
             </div>
-          )}
+            <h3 className="text-base sm:text-lg font-semibold text-slate-900 leading-snug wrap-break-word">
+              {name}
+            </h3>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2.5">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">
+              Source Path
+            </div>
+            <div className="text-xs sm:text-[13px] font-mono text-slate-700 break-all leading-relaxed">
+              {path || "Path unavailable"}
+            </div>
+          </div>
         </div>
 
-        {/* Dynamic Corpus IDs Badges */}
-        <div className="flex flex-wrap items-center gap-2 self-start md:self-center">
+        <div className="flex flex-wrap lg:flex-col lg:items-end items-center gap-2">
           {parsedMetadata.docId && (
-            <span className="px-2.5 py-1 text-xs font-mono font-bold rounded-lg bg-blue-500/10 text-blue-500 border border-blue-500/10 shadow-3xs">
-              Doc ID: #{parsedMetadata.docId}
+            <span className="px-3 py-1.5 text-xs font-mono font-bold rounded-xl bg-blue-500/10 text-blue-700 border border-blue-500/20">
+              DOC ID #{parsedMetadata.docId}
             </span>
           )}
           {parsedMetadata.sourceId && (
-            <span className="px-2.5 py-1 text-xs font-mono font-bold rounded-lg bg-teal-500/10 text-teal-500 border border-teal-500/10 shadow-3xs">
-              Ref ID: #{parsedMetadata.sourceId}
+            <span className="px-3 py-1.5 text-xs font-mono font-bold rounded-xl bg-teal-500/10 text-teal-700 border border-teal-500/20">
+              REF ID #{parsedMetadata.sourceId}
+            </span>
+          )}
+          {!hasMetadata && (
+            <span className="px-3 py-1.5 text-xs font-medium rounded-xl bg-slate-100 text-slate-600 border border-slate-200">
+              No header IDs found
             </span>
           )}
         </div>
       </div>
-    </div>
+    </section>
   );
 }
