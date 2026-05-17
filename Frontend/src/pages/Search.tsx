@@ -5,6 +5,7 @@ import { useGetDocumentQuery } from "../redux/api/searchApi";
 import type { RankResponseWithPagination } from "../types/api";
 import DocumentRenderer from "../Components/DocumentRenderer";
 import DocumentMetadata from "../Components/DocumentMetadata";
+import VectorDiagnostics from "../Components/VectorDiagnostics";
 
 const FALLBACK_QUERY = "information retrieval";
 
@@ -115,108 +116,7 @@ export default function Search() {
   return (
     <div className="relative max-w-5xl mx-auto px-4 sm:px-6 transition-[padding] duration-500 ease-out py-8">
       <div className="max-w-4xl animate-fade-in pb-20">
-        <div className="mb-12 flex items-center justify-between">
-          <div className="flex items-center gap-3 antialiased">
-            <div className="text-sm font-light text-[#70757a]">
-              About
-              <span className="font-medium text-[#202124]">
-                {results?.corpus?.total_documents
-                  ? results.corpus.total_documents.toLocaleString()
-                  : "-"}
-              </span>
-              results
-            </div>
-            <span className="text-[#d0d0d0]">|</span>
-            <div className="text-sm text-[#9aa0a6] font-light">
-              <span className="font-medium text-[#4285f4]">
-                {results?.rank_time_ms
-                  ? (results.rank_time_ms / 1000).toFixed(2)
-                  : "0.42"}
-              </span>{" "}
-              seconds
-            </div>
-          </div>
-          <div className="hidden sm:block text-sm text-[#70757a] font-light">
-            Searching for:
-            <span className="font-medium text-[#202124]">{query}</span>
-          </div>
-        </div>
-
-        {/* Query & Corpus summary (from RankResponse) */}
-        {results && (
-          <div className="mb-6 p-4 rounded-lg bg-white/50 border border-gray-100">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div>
-                <div className="text-sm text-[#70757a]">Query</div>
-                <div className="font-medium text-[#202124]">
-                  {results.query.query}
-                </div>
-                <div className="text-xs text-[#70757a] mt-1">
-                  Tokens: {results.query.tokens.join(", ")}
-                </div>
-
-                <div className="text-xs text-[#70757a] mt-2">
-                  <div className="font-medium text-[#202124]">
-                    Norm:{" "}
-                    <span className="font-normal">{results.query.norm}</span>
-                  </div>
-                  <div className="mt-1">
-                    Vector:{" "}
-                    <span className="font-normal">
-                      {Object.entries(results.query.vector || {})
-                        .map(([t, v]) => `${t}: ${v}`)
-                        .join(", ")}
-                    </span>
-                  </div>
-                  <div className="mt-1">
-                    Term counts:{" "}
-                    <span className="font-normal">
-                      {Object.entries(results.query.term_counts || {})
-                        .map(([t, c]) => `${t}: ${c}`)
-                        .join(", ")}
-                    </span>
-                  </div>
-                  <div className="mt-1">
-                    TF:{" "}
-                    <span className="font-normal">
-                      {Object.entries(results.query.tf || {})
-                        .map(([t, v]) => `${t}: ${v}`)
-                        .join(", ")}
-                    </span>
-                  </div>
-
-                  {results.query.details &&
-                    results.query.details.length > 0 && (
-                      <div className="mt-2">
-                        <div className="text-sm text-[#70757a]">Details:</div>
-                        <ul className="list-disc pl-5 text-xs text-[#70757a] mt-1 space-y-1">
-                          {results.query.details.map((d) => (
-                            <li key={d.term}>
-                              <span className="font-medium text-[#202124]">
-                                {d.term}
-                              </span>
-                              : count {d.count}, tf {d.tf}, df {d.df}, idf{" "}
-                              {d.idf}, tfidf {d.tfidf}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                </div>
-              </div>
-              <div>
-                <div className="text-sm text-[#70757a]">Corpus</div>
-                <div className="font-medium text-[#202124]">
-                  {results.corpus.total_documents.toLocaleString()} documents •{" "}
-                  {results.corpus.unique_terms.toLocaleString()} unique terms
-                </div>
-                <div className="text-xs text-[#70757a] mt-1">
-                  Rank time: {results.rank_time_ms.toFixed(2)} ms
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        <VectorDiagnostics results={results} query={query} />
 
         {/* Inline Document Preview */}
         {previewId && (
