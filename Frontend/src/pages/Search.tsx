@@ -9,6 +9,29 @@ import VectorDiagnostics from "../Components/VectorDiagnostics";
 
 const FALLBACK_QUERY = "information retrieval";
 
+function highlightText(text: string, queryStr: string | null): string {
+  if (!text || !queryStr) return text;
+
+  const stopwords = new Set([
+    "the", "a", "an", "and", "or", "in", "on", "of", "to", "for", "with",
+    "by", "at", "is", "was", "were", "are", "be", "been", "this", "that",
+    "it", "from", "as", "he", "she", "they", "we", "i", "you", "but"
+  ]);
+
+  const terms = queryStr
+    .toLowerCase()
+    .split(/[\s,.\-_/]+/)
+    .filter((t) => t.length > 1 && !stopwords.has(t));
+
+  if (terms.length === 0) return text;
+
+  // Escape terms for Regex safety
+  const escaped = terms.map((t) => t.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&"));
+  const regex = new RegExp(`\\b(${escaped.join("|")})\\b`, "gi");
+
+  return text.replace(regex, `<strong class="font-bold text-blue-800">$1</strong>`);
+}
+
 export default function Search() {
   const [searchParams] = useSearchParams();
   const query = searchParams.get("q")?.trim() || FALLBACK_QUERY;
@@ -281,7 +304,7 @@ export default function Search() {
                   <div className="mb-2 pl-4 border-l-2 border-blue-200/40 group-hover:border-blue-400/60 transition-colors duration-300">
                     <p
                       className="text-sm text-[#4285f4] font-normal italic antialiased"
-                      dangerouslySetInnerHTML={{ __html: r.snippet }}
+                      dangerouslySetInnerHTML={{ __html: highlightText(r.snippet, query) }}
                     />
                   </div>
                 </Link>
