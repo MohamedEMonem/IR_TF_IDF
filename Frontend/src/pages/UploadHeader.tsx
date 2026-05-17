@@ -1,8 +1,10 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useGetStatusQuery } from "../redux/api/searchApi";
 import Hero from "../Components/Hero";
 
 const UploadHeader = () => {
+  const location = useLocation();
+  const isHomePage = location.pathname === "/";
   // poll status endpoint to show global indexing state
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const { data: statusData } = useGetStatusQuery(undefined, {
@@ -29,14 +31,18 @@ const UploadHeader = () => {
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-600 via-pink-500 via-orange-500 via-amber-500 to-lime-500 animate-gradient-x"></div>
           <div className="max-w-7xl mx-auto px-4 sm:px-6">
             <div className="flex items-center justify-between py-3">
-              <Link
-                className="relative group cursor-pointer select-none"
-                to="/"
-                data-discover="true"
-              >
-                <div className="absolute -inset-2 bg-gradient-to-r from-purple-400/10 via-pink-400/10 to-purple-400/10 rounded-xl blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                <Hero size="sm" />
-              </Link>
+              {!isHomePage ? (
+                <Link
+                  className="relative group cursor-pointer select-none animate-fade-in"
+                  to="/"
+                  data-discover="true"
+                >
+                  <div className="absolute -inset-2 bg-gradient-to-r from-purple-400/10 via-pink-400/10 to-purple-400/10 rounded-xl blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                  <Hero size="sm" />
+                </Link>
+              ) : (
+                <div />
+              )}
               <div className="flex items-center gap-3">
                 <div
                   title={backendStatus ?? ""}
