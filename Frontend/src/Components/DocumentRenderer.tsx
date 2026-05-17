@@ -4,7 +4,6 @@ interface DocumentRendererProps {
   text: string;
   query?: string | null;
   documentName?: string;
-  documentPath?: string;
 }
 
 interface ProcessedSection {
@@ -134,7 +133,6 @@ export default function DocumentRenderer({
   text,
   query = null,
   documentName,
-  documentPath,
 }: DocumentRendererProps) {
   const [viewMode, setViewMode] = useState<"formatted" | "raw">("formatted");
   const [theme, setTheme] = useState<"light" | "sepia" | "dark">("light");
@@ -252,12 +250,6 @@ export default function DocumentRenderer({
     large: "text-lg sm:text-xl leading-relaxed",
   }[fontSize];
 
-  const titleSizes = {
-    small: "text-lg font-bold",
-    medium: "text-2xl sm:text-3xl font-extrabold tracking-tight",
-    large: "text-3xl sm:text-4xl font-extrabold tracking-tight",
-  }[fontSize];
-
   const headingSizes = {
     small: "text-base font-semibold",
     medium: "text-xl sm:text-2xl font-bold tracking-tight",
@@ -266,18 +258,44 @@ export default function DocumentRenderer({
 
   // Logic to highlight tags in the RAW view mode
   const renderRawWithSyntaxHighlighting = () => {
-    const lines = text.split("\n");
+    const formattedLines: string[] = [];
+    const structuralTagRegex = /(<\/?[hp]>)/gi;
+    const tokens = text.replace(/\r/g, "").split(structuralTagRegex).filter(Boolean);
+    let buffer = "";
+
+    const flushBuffer = () => {
+      const trimmedBuffer = buffer.trim();
+      if (!trimmedBuffer) return;
+
+      formattedLines.push(`\t${trimmedBuffer}`);
+      buffer = "";
+    };
+
+    for (const token of tokens) {
+      if (/^<\/?[hp]>$/i.test(token)) {
+        flushBuffer();
+        formattedLines.push(token);
+      } else {
+        buffer += token;
+      }
+    }
+
+    flushBuffer();
+
     return (
-      <div className="font-mono text-xs overflow-x-auto p-4 space-y-1">
-        {lines.map((line, i) => {
+      <div
+        className="font-mono text-[13px] leading-6 overflow-auto py-4"
+        style={{ tabSize: 4 }}
+      >
+        {formattedLines.map((line, i) => {
           // Syntax highlight corpus structural tags in raw view
           let highlightedLine: React.ReactNode = line;
 
-          const tagRegex = /(<\/?[h|p]>|@@\d+|@\d+\/|@qwx\d+)/gi;
+          const tagRegex = /(<\/?[hp]>|@@\d+|@\d+\/|@qwx\d+)/gi;
           if (tagRegex.test(line)) {
             const lineParts = line.split(tagRegex);
             highlightedLine = lineParts.map((part, index) => {
-              if (/^<\/?[h|p]>$/i.test(part)) {
+              if (/^<\/?[hp]>$/i.test(part)) {
                 return (
                   <span key={index} className="text-purple-400 font-bold">
                     {part}
@@ -307,11 +325,19 @@ export default function DocumentRenderer({
           }
 
           return (
-            <div key={i} className="flex hover:bg-slate-500/5 px-1 py-0.5 rounded transition-colors">
-              <span className="w-8 select-none text-slate-500 text-right pr-3 border-r border-slate-500/20 mr-3">
+            <div
+              key={i}
+              className="grid grid-cols-[3.5rem_1fr] items-start gap-3 px-4 py-0.5 hover:bg-white/5 transition-colors"
+            >
+              <span className="select-none text-slate-500 text-right pr-3 border-r border-slate-800/80 bg-slate-950/95 sticky left-0">
                 {i + 1}
               </span>
-              <span className="whitespace-pre">{highlightedLine}</span>
+              <span
+                className="min-w-0 whitespace-pre-wrap wrap-break-word"
+                style={{ whiteSpace: "pre-wrap" }}
+              >
+                {highlightedLine}
+              </span>
             </div>
           );
         })}
@@ -491,7 +517,7 @@ export default function DocumentRenderer({
                     return (
                       <p
                         key={idx}
-                        className="text-justify whitespace-pre-wrap font-normal leading-relaxed break-words"
+                        className="text-justify whitespace-pre-wrap font-normal leading-relaxed wrap-break-word"
                       >
                         {renderTextContent(section.text)}
                       </p>
@@ -502,9 +528,9 @@ export default function DocumentRenderer({
             </div>
           ) : (
             // Syntax Highlighted Raw View
-            <div className="relative rounded-xl overflow-hidden border border-inherit bg-slate-950 text-slate-300">
-              <div className="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-slate-800 text-[10px] uppercase font-bold tracking-wider text-slate-500">
-                <span>Raw Text Viewer</span>
+            <div className="relative rounded-xl overflow-hidden border border-slate-800 bg-slate-950 text-slate-300 shadow-inner">
+              <div className="flex items-center justify-between px-4 py-2 bg-slate-900/95 border-b border-slate-800 text-[10px] uppercase font-bold tracking-wider text-slate-500">
+                <span>Raw Editor</span>
                 <button
                   onClick={() => {
                     navigator.clipboard.writeText(text);
