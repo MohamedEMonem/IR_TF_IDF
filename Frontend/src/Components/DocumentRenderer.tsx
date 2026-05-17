@@ -457,7 +457,7 @@ export default function DocumentRenderer({
                   return (
                     <p
                       key={idx}
-                      className="text-justify whitespace-pre-wrap font-normal leading-relaxed break-words"
+                      className="text-justify whitespace-pre-wrap font-normal leading-relaxed wrap-break-words"
                     >
                       {renderTextContent(section.text)}
                     </p>
