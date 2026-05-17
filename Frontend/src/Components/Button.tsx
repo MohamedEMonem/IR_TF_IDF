@@ -12,6 +12,7 @@ export const Button = ({
   variant = "primary",
   size = "md",
   className,
+  disabled,
   ...props
 }: ButtonProps) => {
   const baseStyles = "font-medium rounded transition-colors";
@@ -42,8 +43,10 @@ export const Button = ({
       className={classNames(
         variant === "lucky"
           ? classNames(variantStyles.lucky, className)
-          : classNames(baseStyles, variantStyles[variant], sizeStyles[size]),
+          : classNames(baseStyles, variantStyles[variant], sizeStyles[size], className),
+        disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"
       )}
+      disabled={disabled}
       {...props}
     >
       {variant === "lucky" ? (

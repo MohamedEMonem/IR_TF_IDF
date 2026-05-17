@@ -13,7 +13,7 @@ export default function Home() {
   const handleSearch = (q: string) => {
     const term = q || query;
     setQuery(term);
-    navigate("/search", { state: { query: term } });
+    navigate(`/search?q=${encodeURIComponent(term)}`);
   };
 
   return (

@@ -1,9 +1,11 @@
-import { useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState, type FormEvent } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useGetStatusQuery } from "../redux/api/searchApi";
+import Hero from "../Components/Hero";
 
 const Header = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [query, setQuery] = useState("");
   const { data: statusData } = useGetStatusQuery(undefined, {
     pollingInterval: 2000,
@@ -16,11 +18,21 @@ const Header = () => {
       ? "Indexing"
       : (backendStatus ?? "Indexed")
     : "Idle";
+
+  useEffect(() => {
+    const queryFromUrl = new URLSearchParams(location.search).get("q")?.trim();
+    const queryFromState = (location.state as { query?: string } | null)?.query;
+    const nextQuery = queryFromUrl || queryFromState;
+    if (typeof nextQuery === "string") {
+      setQuery(nextQuery);
+    }
+  }, [location.search, location.state]);
+
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const trimmed = query.trim();
     if (!trimmed) return;
-    navigate("/search", { state: { query: trimmed } });
+    navigate(`/search?q=${encodeURIComponent(trimmed)}`);
   };
   return (
     <header className="sticky top-0 z-50 animate-slide-down">
@@ -30,40 +42,16 @@ const Header = () => {
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
           <div className="flex items-center gap-6 py-3">
             <Link
-              className="group relative cursor-pointer animate-fade-in-left"
+              className="group relative cursor-pointer animate-fade-in-left select-none"
               to="/"
               data-discover="true"
               title="Home"
               aria-label="Home"
             >
-              <div className="absolute inset-0 rounded-2xl bg-linear-to-br from-blue-400/20 via-purple-400/20 to-pink-400/20 opacity-0 blur-xl transition-opacity duration-500 group-hover:opacity-100" />
-              <div className="relative flex items-center gap-2 rounded-2xl border border-blue-100/50 bg-linear-to-br from-blue-50 via-purple-50 to-pink-50 px-4 py-2.5 transition-all duration-300 group-hover:scale-105 group-hover:shadow-xl">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="size-6 animate-pulse-slow text-[#4285f4]"
-                >
-                  <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" />
-                  <path d="M20 3v4" />
-                  <path d="M22 5h-4" />
-                  <path d="M4 17v2" />
-                  <path d="M5 18H3" />
-                </svg>
-
-                <div className="flex items-center gap-0.5">
-                  <div className="dot-delay-1 size-2 rounded-full bg-[#4285f4] animate-pulse" />
-                  <div className="dot-delay-2 size-2 rounded-full bg-[#ea4335] animate-pulse" />
-                  <div className="dot-delay-3 size-2 rounded-full bg-[#fbbc04] animate-pulse" />
-                  <div className="dot-delay-4 size-2 rounded-full bg-[#34a853] animate-pulse" />
-                </div>
-              </div>
+              {/* Subtle background glow on hover */}
+              <div className="absolute -inset-2 rounded-xl bg-linear-to-r from-purple-400/10 via-pink-400/10 to-purple-400/10 opacity-0 blur-md transition-opacity duration-500 group-hover:opacity-100" />
+              
+              <Hero size="sm" />
             </Link>
 
             <form

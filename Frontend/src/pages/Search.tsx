@@ -1,23 +1,40 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useRankDocumentsMutation } from "../redux/api/searchApi";
 import { useGetDocumentQuery } from "../redux/api/searchApi";
 import type { RankResponseWithPagination } from "../types/api";
 import DocumentRenderer from "../Components/DocumentRenderer";
 import DocumentMetadata from "../Components/DocumentMetadata";
-
-
-type SearchLocationState = {
-  query?: string;
-};
+import VectorDiagnostics from "../Components/VectorDiagnostics";
 
 const FALLBACK_QUERY = "information retrieval";
 
+function highlightText(text: string, queryStr: string | null): string {
+  if (!text || !queryStr) return text;
+
+  const stopwords = new Set([
+    "the", "a", "an", "and", "or", "in", "on", "of", "to", "for", "with",
+    "by", "at", "is", "was", "were", "are", "be", "been", "this", "that",
+    "it", "from", "as", "he", "she", "they", "we", "i", "you", "but"
+  ]);
+
+  const terms = queryStr
+    .toLowerCase()
+    .split(/[\s,.\-_/]+/)
+    .filter((t) => t.length > 1 && !stopwords.has(t));
+
+  if (terms.length === 0) return text;
+
+  // Escape terms for Regex safety
+  const escaped = terms.map((t) => t.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&"));
+  const regex = new RegExp(`\\b(${escaped.join("|")})\\b`, "gi");
+
+  return text.replace(regex, `<strong class="font-bold text-blue-800">$1</strong>`);
+}
+
 export default function Search() {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const state = location.state as SearchLocationState | null;
-  const query = state?.query?.trim() ?? FALLBACK_QUERY;
+  const [searchParams] = useSearchParams();
+  const query = searchParams.get("q")?.trim() || FALLBACK_QUERY;
   const [results, setResults] = useState<RankResponseWithPagination | null>(
     null,
   );
@@ -106,24 +123,8 @@ export default function Search() {
   };
 
   useEffect(() => {
-    const nextQuery = state?.query?.trim();
-
-    if (!nextQuery) {
-      navigate("/", { replace: true });
-      return;
-    }
-
-    // fetch results for the provided query (start at page 1)
-    void rankDocuments({
-      query: nextQuery,
-      top_k: pageSize,
-      page: 1,
-      page_size: pageSize,
-    })
-      .unwrap()
-      .then((response) => setResults(response))
-      .catch(() => setResults(null));
-  }, [navigate, rankDocuments, state?.query]);
+    setPage(1);
+  }, [query]);
 
   // fetch when page changes
   useEffect(() => {
@@ -138,108 +139,7 @@ export default function Search() {
   return (
     <div className="relative max-w-5xl mx-auto px-4 sm:px-6 transition-[padding] duration-500 ease-out py-8">
       <div className="max-w-4xl animate-fade-in pb-20">
-        <div className="mb-12 flex items-center justify-between">
-          <div className="flex items-center gap-3 antialiased">
-            <div className="text-sm font-light text-[#70757a]">
-              About
-              <span className="font-medium text-[#202124]">
-                {results?.corpus?.total_documents
-                  ? results.corpus.total_documents.toLocaleString()
-                  : "-"}
-              </span>
-              results
-            </div>
-            <span className="text-[#d0d0d0]">|</span>
-            <div className="text-sm text-[#9aa0a6] font-light">
-              <span className="font-medium text-[#4285f4]">
-                {results?.rank_time_ms
-                  ? (results.rank_time_ms / 1000).toFixed(2)
-                  : "0.42"}
-              </span>{" "}
-              seconds
-            </div>
-          </div>
-          <div className="hidden sm:block text-sm text-[#70757a] font-light">
-            Searching for:
-            <span className="font-medium text-[#202124]">{query}</span>
-          </div>
-        </div>
-
-        {/* Query & Corpus summary (from RankResponse) */}
-        {results && (
-          <div className="mb-6 p-4 rounded-lg bg-white/50 border border-gray-100">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div>
-                <div className="text-sm text-[#70757a]">Query</div>
-                <div className="font-medium text-[#202124]">
-                  {results.query.query}
-                </div>
-                <div className="text-xs text-[#70757a] mt-1">
-                  Tokens: {results.query.tokens.join(", ")}
-                </div>
-
-                <div className="text-xs text-[#70757a] mt-2">
-                  <div className="font-medium text-[#202124]">
-                    Norm:{" "}
-                    <span className="font-normal">{results.query.norm}</span>
-                  </div>
-                  <div className="mt-1">
-                    Vector:{" "}
-                    <span className="font-normal">
-                      {Object.entries(results.query.vector || {})
-                        .map(([t, v]) => `${t}: ${v}`)
-                        .join(", ")}
-                    </span>
-                  </div>
-                  <div className="mt-1">
-                    Term counts:{" "}
-                    <span className="font-normal">
-                      {Object.entries(results.query.term_counts || {})
-                        .map(([t, c]) => `${t}: ${c}`)
-                        .join(", ")}
-                    </span>
-                  </div>
-                  <div className="mt-1">
-                    TF:{" "}
-                    <span className="font-normal">
-                      {Object.entries(results.query.tf || {})
-                        .map(([t, v]) => `${t}: ${v}`)
-                        .join(", ")}
-                    </span>
-                  </div>
-
-                  {results.query.details &&
-                    results.query.details.length > 0 && (
-                      <div className="mt-2">
-                        <div className="text-sm text-[#70757a]">Details:</div>
-                        <ul className="list-disc pl-5 text-xs text-[#70757a] mt-1 space-y-1">
-                          {results.query.details.map((d) => (
-                            <li key={d.term}>
-                              <span className="font-medium text-[#202124]">
-                                {d.term}
-                              </span>
-                              : count {d.count}, tf {d.tf}, df {d.df}, idf{" "}
-                              {d.idf}, tfidf {d.tfidf}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                </div>
-              </div>
-              <div>
-                <div className="text-sm text-[#70757a]">Corpus</div>
-                <div className="font-medium text-[#202124]">
-                  {results.corpus.total_documents.toLocaleString()} documents •{" "}
-                  {results.corpus.unique_terms.toLocaleString()} unique terms
-                </div>
-                <div className="text-xs text-[#70757a] mt-1">
-                  Rank time: {results.rank_time_ms.toFixed(2)} ms
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        <VectorDiagnostics results={results} query={query} />
 
         {/* Inline Document Preview */}
         {previewId && (
@@ -301,25 +201,25 @@ export default function Search() {
         <div className="space-y-14">
           {results ? (
             // Render each ranked document using the provided article layout
-            results.results.map((r) => (
-              <article
-                key={r.doc_id}
-                className="group animate-slide-up will-change-transform"
-              >
-                <Link
-                  className="block cursor-pointer py-2 px-3 -mx-2 rounded-2xl hover:bg-linear-to-r hover:from-blue-50/40 hover:to-purple-50/40 transition-all duration-300 shadow-sm"
-                  to={`/document/${r.doc_id}`}
-                  state={{ query }}
-                  title={`Open result ${r.doc_id}`}
-                  data-discover="true"
+            results.results.map((r, idx) => {
+              const rankIndex = (page - 1) * pageSize + idx + 1;
+              return (
+                <article
+                  key={r.doc_id}
+                  className="group animate-slide-up will-change-transform"
                 >
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="size-7 rounded-lg bg-linear-to-br from-blue-100/80 to-purple-100/80 backdrop-blur-sm flex items-center justify-center text-sm font-semibold text-[#4285f4] shadow-sm border border-blue-200/30">
-                        {String(
-                          (r.name && r.name.charAt(0)) || "W",
-                        ).toUpperCase()}
-                      </div>
+                  <Link
+                    className="block cursor-pointer py-2 px-3 -mx-2 rounded-2xl hover:bg-linear-to-r hover:from-blue-50/40 hover:to-purple-50/40 transition-all duration-300 shadow-sm"
+                    to={`/document/${r.doc_id}`}
+                    state={{ query }}
+                    title={`Open result ${r.doc_id}`}
+                    data-discover="true"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="size-7 rounded-lg bg-linear-to-br from-blue-500/10 to-indigo-500/10 flex items-center justify-center text-xs font-semibold text-blue-600 shadow-2xs border border-blue-200/40 font-mono">
+                          #{rankIndex}
+                        </div>
                       <div className="text-sm text-[#202124]/60 group-hover:text-[#4285f4] font-normal antialiased tracking-wide transition-colors duration-200">
                         {r.path}
                       </div>
@@ -404,13 +304,9 @@ export default function Search() {
                   <div className="mb-2 pl-4 border-l-2 border-blue-200/40 group-hover:border-blue-400/60 transition-colors duration-300">
                     <p
                       className="text-sm text-[#4285f4] font-normal italic antialiased"
-                      dangerouslySetInnerHTML={{ __html: r.snippet }}
+                      dangerouslySetInnerHTML={{ __html: highlightText(r.snippet, query) }}
                     />
                   </div>
-
-                  <p className="text-base sm:text-lg text-[#4d5156] leading-relaxed font-light antialiased tracking-wide">
-                    Learn the fundamentals of this document.
-                  </p>
                 </Link>
 
                 {expandedIds.has(r.doc_id) && (
@@ -621,7 +517,7 @@ export default function Search() {
 
                 <div className="mt-6 h-px bg-linear-to-r from-transparent via-blue-200/50 to-transparent opacity-50 group-hover:opacity-100 group-hover:via-blue-300/60 transition-opacity duration-300" />
               </article>
-            ))
+            )})
           ) : (
             <div className="text-sm text-[#70757a]">No results yet</div>
           )}
@@ -644,7 +540,7 @@ export default function Search() {
                     <button
                       onClick={() => setPage(Math.max(1, page - 1))}
                       disabled={!p.has_prev}
-                      className={`px-3 py-1 rounded ${p.has_prev ? "bg-white border" : "bg-gray-100 text-gray-400"} text-sm`}
+                      className={`px-3 py-1 rounded ${p.has_prev ? "bg-white border cursor-pointer hover:bg-gray-50 transition-all duration-200" : "bg-gray-100 text-gray-400 cursor-not-allowed"} text-sm`}
                     >
                       Prev
                     </button>
@@ -654,7 +550,7 @@ export default function Search() {
                     <button
                       onClick={() => setPage(Math.min(p.total_pages, page + 1))}
                       disabled={!p.has_next}
-                      className={`px-3 py-1 rounded ${p.has_next ? "bg-white border" : "bg-gray-100 text-gray-400"} text-sm`}
+                      className={`px-3 py-1 rounded ${p.has_next ? "bg-white border cursor-pointer hover:bg-gray-50 transition-all duration-200" : "bg-gray-100 text-gray-400 cursor-not-allowed"} text-sm`}
                     >
                       Next
                     </button>

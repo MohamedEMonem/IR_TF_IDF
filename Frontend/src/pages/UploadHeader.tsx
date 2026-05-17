@@ -1,7 +1,10 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useGetStatusQuery } from "../redux/api/searchApi";
+import Hero from "../Components/Hero";
 
 const UploadHeader = () => {
+  const location = useLocation();
+  const isHomePage = location.pathname === "/";
   // poll status endpoint to show global indexing state
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const { data: statusData } = useGetStatusQuery(undefined, {
@@ -28,51 +31,18 @@ const UploadHeader = () => {
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-600 via-pink-500 via-orange-500 via-amber-500 to-lime-500 animate-gradient-x"></div>
           <div className="max-w-7xl mx-auto px-4 sm:px-6">
             <div className="flex items-center justify-between py-3">
-              <Link
-                className="relative group cursor-pointer"
-                to="/"
-                data-discover="true"
-              >
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-400/20 via-purple-400/20 to-pink-400/20 rounded-2xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                <div className="relative flex items-center gap-2 px-4 py-2.5 bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 rounded-2xl group-hover:shadow-xl group-hover:scale-105 transition-all duration-300 border border-blue-100/50">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="lucide lucide-sparkles size-6 text-[#4285f4] animate-pulse-slow"
-                  >
-                    <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"></path>
-                    <path d="M20 3v4"></path>
-                    <path d="M22 5h-4"></path>
-                    <path d="M4 17v2"></path>
-                    <path d="M5 18H3"></path>
-                  </svg>
-                  <div className="flex items-center gap-0.5">
-                    <div
-                      className="size-2 rounded-full bg-[#4285f4] animate-pulse"
-                      style={{ animationDelay: "0s" }}
-                    ></div>
-                    <div
-                      className="size-2 rounded-full bg-[#ea4335] animate-pulse"
-                      style={{ animationDelay: "0.2s" }}
-                    ></div>
-                    <div
-                      className="size-2 rounded-full bg-[#fbbc04] animate-pulse"
-                      style={{ animationDelay: "0.4s" }}
-                    ></div>
-                    <div
-                      className="size-2 rounded-full bg-[#34a853] animate-pulse"
-                      style={{ animationDelay: "0.6s" }}
-                    ></div>
-                  </div>
-                </div>
-              </Link>
+              {!isHomePage ? (
+                <Link
+                  className="relative group cursor-pointer select-none animate-fade-in"
+                  to="/"
+                  data-discover="true"
+                >
+                  <div className="absolute -inset-2 bg-gradient-to-r from-purple-400/10 via-pink-400/10 to-purple-400/10 rounded-xl blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                  <Hero size="sm" />
+                </Link>
+              ) : (
+                <div />
+              )}
               <div className="flex items-center gap-3">
                 <div
                   title={backendStatus ?? ""}
