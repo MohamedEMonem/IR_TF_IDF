@@ -51,7 +51,7 @@ export default function SearchBar({
           <Button
             variant="lucky"
             type="submit"
-            className={!searchValue ? "cursor-not-allowed opacity-50" : ""}
+            className={!searchValue ? "cursor-not-allowed opacity-50" : "cursor-pointer transition-all duration-200 hover:bg-gray-50"}
             disabled={!searchValue}
             aria-label="Search"
           >

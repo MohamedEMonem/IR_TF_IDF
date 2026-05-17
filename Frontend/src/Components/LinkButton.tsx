@@ -16,7 +16,7 @@ export default function LinkButton({
     <Link
       to={href}
       className={
-        "relative bg-[#f8f9fa] text-sm font-medium px-8 py-3.5 rounded-lg hover:shadow-xl hover:bg-white border border-transparent hover:border-[#dadce0] hover:scale-105 active:scale-95 overflow-hidden transition-all duration-300 group/btn " +
+        "relative bg-[#f8f9fa] text-sm font-medium px-8 py-3.5 rounded-lg hover:shadow-xl hover:bg-white border border-transparent hover:border-[#dadce0] hover:scale-105 active:scale-95 overflow-hidden transition-all duration-300 group/btn cursor-pointer" +
         (className || "")
       }
     >

@@ -621,7 +621,7 @@ export default function Search() {
                     <button
                       onClick={() => setPage(Math.max(1, page - 1))}
                       disabled={!p.has_prev}
-                      className={`px-3 py-1 rounded ${p.has_prev ? "bg-white border" : "bg-gray-100 text-gray-400"} text-sm`}
+                      className={`px-3 py-1 rounded ${p.has_prev ? "bg-white border cursor-pointer hover:bg-gray-50 transition-all duration-200" : "bg-gray-100 text-gray-400 cursor-not-allowed"} text-sm`}
                     >
                       Prev
                     </button>
@@ -631,7 +631,7 @@ export default function Search() {
                     <button
                       onClick={() => setPage(Math.min(p.total_pages, page + 1))}
                       disabled={!p.has_next}
-                      className={`px-3 py-1 rounded ${p.has_next ? "bg-white border" : "bg-gray-100 text-gray-400"} text-sm`}
+                      className={`px-3 py-1 rounded ${p.has_next ? "bg-white border cursor-pointer hover:bg-gray-50 transition-all duration-200" : "bg-gray-100 text-gray-400 cursor-not-allowed"} text-sm`}
                     >
                       Next
                     </button>
