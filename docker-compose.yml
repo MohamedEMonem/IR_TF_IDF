@@ -19,6 +19,8 @@ services:
       - ./corpus:/app/corpus
       # Cache directory (uses named volume for better performance and persistence)
       - data_cache:/app/data_cache
+    networks:
+      - tfidf-network
 
   frontend:
       build: 
@@ -27,7 +29,15 @@ services:
       ports:
         - "80:80" # Maps port 80 on your local machine to port 80 in the container
       restart: unless-stopped
+      depends_on:
+        - backend
+      networks:
+        - tfidf-network
 
 volumes:
   data_cache:
     driver: local
+
+networks:
+  tfidf-network:
+    driver: bridge

@@ -23,14 +23,14 @@ RUN yarn build
 # ==========================================
 FROM nginx:alpine
 
-# Copy the built static files from the builder stage to Nginx's serving directory
+# Remove the default Nginx configuration
+RUN rm /etc/nginx/conf.d/default.conf
+
+# Copy our custom configuration
+COPY nginx.conf /etc/nginx/conf.d/
+
+# Copy the built static files
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Optional: Copy a custom Nginx configuration if you have client-side routing (like React Router)
-# COPY nginx.conf /etc/nginx/conf.d/default.conf
-
-# Expose port 80 to the outside world
 EXPOSE 80
-
-# Start Nginx
 CMD ["nginx", "-g", "daemon off;"]
