@@ -3,8 +3,6 @@ import { useState, useMemo } from "react";
 interface DocumentRendererProps {
   text: string;
   query?: string | null;
-  documentName?: string;
-  documentPath?: string;
 }
 
 interface ProcessedSection {
@@ -133,8 +131,6 @@ function parseCorpusText(text: string): ParsedCorpus {
 export default function DocumentRenderer({
   text,
   query = null,
-  documentName,
-  documentPath,
 }: DocumentRendererProps) {
   const [viewMode, setViewMode] = useState<"formatted" | "raw">("formatted");
   const [theme, setTheme] = useState<"light" | "sepia" | "dark">("light");
@@ -314,245 +310,190 @@ export default function DocumentRenderer({
   };
 
   return (
-    <div className="space-y-4">
-      {/* 1. TOP BOX: Metadata Card */}
-      <div className={`p-5 rounded-2xl border shadow-xs transition-all duration-300 ${
-        theme === "dark" 
-          ? "bg-[#141b2b] border-slate-800 text-slate-100" 
-          : theme === "sepia"
-          ? "bg-[#f3ead3] border-[#e2d0aa] text-[#423427]"
-          : "bg-white border-slate-200 text-slate-800"
-      }`}>
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div className="flex-1 min-w-0">
-            {/* Document Title / Article Info */}
-            <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">
-              {documentName || "Document Detail"}
-            </h3>
-            
-            {/* Document Path in nice styled container */}
-            {documentPath && (
-              <div className={`text-xs font-mono p-2.5 rounded-lg border mt-2 break-all max-w-full ${
-                theme === "dark" 
-                  ? "bg-[#0b0f19] border-slate-800/80 text-slate-400"
-                  : theme === "sepia"
-                  ? "bg-[#eadcb9]/40 border-[#d8c397]/50 text-[#806440]"
-                  : "bg-slate-50 border-slate-100 text-slate-600"
-              }`}>
-                {documentPath}
-              </div>
-            )}
-          </div>
-
-          {/* Dynamic Corpus IDs Badge Details */}
-          <div className="flex flex-wrap items-center gap-2 self-start md:self-center">
-            <span className={`px-2.5 py-1 text-xs font-mono font-semibold rounded-lg border ${
-              theme === "dark"
-                ? "bg-slate-800 border-slate-700 text-slate-400"
-                : "bg-slate-100 border-slate-200 text-slate-600"
-            }`}>
-              Retrieved Record
-            </span>
-            {parsedData.metadata.docId && (
-              <span className="px-2.5 py-1 text-xs font-mono font-bold rounded-lg bg-blue-500/10 text-blue-500 border border-blue-500/10 shadow-3xs">
-                Doc ID: #{parsedData.metadata.docId}
-              </span>
-            )}
-            {parsedData.metadata.sourceId && (
-              <span className="px-2.5 py-1 text-xs font-mono font-bold rounded-lg bg-teal-500/10 text-teal-500 border border-teal-500/10 shadow-3xs">
-                Ref ID: #{parsedData.metadata.sourceId}
-              </span>
-            )}
-          </div>
+    <div className={`rounded-2xl border transition-all duration-300 shadow-xs ${containerThemeStyles}`}>
+      {/* Settings Toolbar */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 border-b border-inherit gap-3">
+        {/* Toggle between Clean view and Raw view */}
+        <div className="flex items-center bg-slate-500/10 p-1 rounded-xl w-fit">
+          <button
+            onClick={() => setViewMode("formatted")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 cursor-pointer ${
+              viewMode === "formatted"
+                ? "bg-white shadow-xs text-blue-600 scale-[1.02]"
+                : "text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z" />
+              <path d="M6 6h10" />
+              <path d="M6 10h10" />
+              <path d="M6 14h10" />
+            </svg>
+            Clean Article
+          </button>
+          <button
+            onClick={() => setViewMode("raw")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 cursor-pointer ${
+              viewMode === "raw"
+                ? "bg-white shadow-xs text-blue-600 scale-[1.02]"
+                : "text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polyline points="16 18 22 12 16 6" />
+              <polyline points="8 6 2 12 8 18" />
+            </svg>
+            Raw Corpus Text
+          </button>
         </div>
+
+        {/* Customizer settings bar (Formatted Mode Only) */}
+        {viewMode === "formatted" && (
+          <div className="flex items-center flex-wrap gap-4">
+            {/* Font sizing adjusters */}
+            <div className="flex items-center border border-slate-500/20 rounded-xl overflow-hidden text-xs bg-slate-500/5">
+              <button
+                onClick={() => setFontSize("small")}
+                className={`px-2.5 py-1.5 font-medium transition-colors cursor-pointer ${
+                  fontSize === "small" ? "bg-slate-500/20 font-bold text-blue-500" : ""
+                }`}
+                title="Font: Small"
+              >
+                A-
+              </button>
+              <button
+                onClick={() => setFontSize("medium")}
+                className={`px-3 py-1.5 font-medium border-x border-slate-500/20 transition-colors cursor-pointer ${
+                  fontSize === "medium" ? "bg-slate-500/20 font-bold text-blue-500" : ""
+                }`}
+                title="Font: Medium"
+              >
+                A
+              </button>
+              <button
+                onClick={() => setFontSize("large")}
+                className={`px-2.5 py-1.5 font-medium transition-colors cursor-pointer ${
+                  fontSize === "large" ? "bg-slate-500/20 font-bold text-blue-500" : ""
+                }`}
+                title="Font: Large"
+              >
+                A+
+              </button>
+            </div>
+
+            {/* Aesthetic Reading Themes switcher */}
+            <div className="flex items-center gap-1.5 border border-slate-500/20 p-0.5 rounded-xl bg-slate-500/5">
+              <button
+                onClick={() => setTheme("light")}
+                className={`size-6 rounded-lg bg-white border flex items-center justify-center transition-all cursor-pointer ${
+                  theme === "light" ? "ring-2 ring-blue-500 scale-[1.05]" : "opacity-70 hover:opacity-100"
+                }`}
+                title="Light Theme"
+                aria-label="Light Theme"
+              >
+                <div className="size-3.5 rounded-full bg-slate-800 border border-slate-200" />
+              </button>
+              <button
+                onClick={() => setTheme("sepia")}
+                className={`size-6 rounded-lg bg-[#fcf8f2] border border-[#e3d7c5] flex items-center justify-center transition-all cursor-pointer ${
+                  theme === "sepia" ? "ring-2 ring-amber-600 scale-[1.05]" : "opacity-70 hover:opacity-100"
+                }`}
+                title="Sepia Reading Theme"
+                aria-label="Sepia Reading Theme"
+              >
+                <div className="size-3.5 rounded-full bg-[#523d29]" />
+              </button>
+              <button
+                onClick={() => setTheme("dark")}
+                className={`size-6 rounded-lg bg-[#0f141c] border border-slate-800 flex items-center justify-center transition-all cursor-pointer ${
+                  theme === "dark" ? "ring-2 ring-blue-400 scale-[1.05]" : "opacity-70 hover:opacity-100"
+                }`}
+                title="Night Mode"
+                aria-label="Night Mode"
+              >
+                <div className="size-3.5 rounded-full bg-white" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* 2. BOTTOM BOX: Reader & Settings Card */}
-      <div className={`rounded-2xl border transition-all duration-300 shadow-xs ${containerThemeStyles}`}>
-        {/* Settings Toolbar */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 border-b border-inherit gap-3">
-          {/* Toggle between Clean view and Raw view */}
-          <div className="flex items-center bg-slate-500/10 p-1 rounded-xl w-fit">
-            <button
-              onClick={() => setViewMode("formatted")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 cursor-pointer ${
-                viewMode === "formatted"
-                  ? "bg-white shadow-xs text-blue-600 scale-[1.02]"
-                  : "text-slate-500 hover:text-slate-700"
-              }`}
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z" />
-                <path d="M6 6h10" />
-                <path d="M6 10h10" />
-                <path d="M6 14h10" />
-              </svg>
-              Clean Article
-            </button>
-            <button
-              onClick={() => setViewMode("raw")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 cursor-pointer ${
-                viewMode === "raw"
-                  ? "bg-white shadow-xs text-blue-600 scale-[1.02]"
-                  : "text-slate-500 hover:text-slate-700"
-              }`}
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <polyline points="16 18 22 12 16 6" />
-                <polyline points="8 6 2 12 8 18" />
-              </svg>
-              Raw Corpus Text
-            </button>
-          </div>
-
-          {/* Customizer settings bar (Formatted Mode Only) */}
-          {viewMode === "formatted" && (
-            <div className="flex items-center flex-wrap gap-4">
-              {/* Font sizing adjusters */}
-              <div className="flex items-center border border-slate-500/20 rounded-xl overflow-hidden text-xs bg-slate-500/5">
+      {/* Text Body Card */}
+      <div className="p-4 sm:p-6 md:p-8">
+        <div className={`p-6 md:p-10 rounded-2xl border transition-all duration-300 ${pageThemeStyles}`}>
+          {viewMode === "formatted" ? (
+            <article className={`space-y-6 ${fontSizes} select-text`}>
+              {parsedData.sections.map((section, idx) => {
+                if (section.type === "heading") {
+                  return (
+                    <h2
+                      key={idx}
+                      className={`text-slate-900 dark:text-white font-extrabold leading-tight mt-8 mb-4 border-l-4 border-blue-500 pl-3 ${headingSizes}`}
+                    >
+                      {renderTextContent(section.text)}
+                    </h2>
+                  );
+                } else {
+                  return (
+                    <p
+                      key={idx}
+                      className="text-justify whitespace-pre-wrap font-normal leading-relaxed break-words"
+                    >
+                      {renderTextContent(section.text)}
+                    </p>
+                  );
+                }
+              })}
+            </article>
+          ) : (
+            // Syntax Highlighted Raw View
+            <div className="relative rounded-xl overflow-hidden border border-inherit bg-slate-950 text-slate-300">
+              <div className="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-slate-800 text-[10px] uppercase font-bold tracking-wider text-slate-500">
+                <span>Raw Text Viewer</span>
                 <button
-                  onClick={() => setFontSize("small")}
-                  className={`px-2.5 py-1.5 font-medium transition-colors cursor-pointer ${
-                    fontSize === "small" ? "bg-slate-500/20 font-bold text-blue-500" : ""
-                  }`}
-                  title="Font: Small"
+                  onClick={() => {
+                    navigator.clipboard.writeText(text);
+                  }}
+                  className="hover:text-slate-300 flex items-center gap-1 transition-colors cursor-pointer"
                 >
-                  A-
-                </button>
-                <button
-                  onClick={() => setFontSize("medium")}
-                  className={`px-3 py-1.5 font-medium border-x border-slate-500/20 transition-colors cursor-pointer ${
-                    fontSize === "medium" ? "bg-slate-500/20 font-bold text-blue-500" : ""
-                  }`}
-                  title="Font: Medium"
-                >
-                  A
-                </button>
-                <button
-                  onClick={() => setFontSize("large")}
-                  className={`px-2.5 py-1.5 font-medium transition-colors cursor-pointer ${
-                    fontSize === "large" ? "bg-slate-500/20 font-bold text-blue-500" : ""
-                  }`}
-                  title="Font: Large"
-                >
-                  A+
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                  </svg>
+                  Copy Raw
                 </button>
               </div>
-
-              {/* Aesthetic Reading Themes switcher */}
-              <div className="flex items-center gap-1.5 border border-slate-500/20 p-0.5 rounded-xl bg-slate-500/5">
-                <button
-                  onClick={() => setTheme("light")}
-                  className={`size-6 rounded-lg bg-white border flex items-center justify-center transition-all cursor-pointer ${
-                    theme === "light" ? "ring-2 ring-blue-500 scale-[1.05]" : "opacity-70 hover:opacity-100"
-                  }`}
-                  title="Light Theme"
-                  aria-label="Light Theme"
-                >
-                  <div className="size-3.5 rounded-full bg-slate-800 border border-slate-200" />
-                </button>
-                <button
-                  onClick={() => setTheme("sepia")}
-                  className={`size-6 rounded-lg bg-[#fcf8f2] border border-[#e3d7c5] flex items-center justify-center transition-all cursor-pointer ${
-                    theme === "sepia" ? "ring-2 ring-amber-600 scale-[1.05]" : "opacity-70 hover:opacity-100"
-                  }`}
-                  title="Sepia Reading Theme"
-                  aria-label="Sepia Reading Theme"
-                >
-                  <div className="size-3.5 rounded-full bg-[#523d29]" />
-                </button>
-                <button
-                  onClick={() => setTheme("dark")}
-                  className={`size-6 rounded-lg bg-[#0f141c] border border-slate-800 flex items-center justify-center transition-all cursor-pointer ${
-                    theme === "dark" ? "ring-2 ring-blue-400 scale-[1.05]" : "opacity-70 hover:opacity-100"
-                  }`}
-                  title="Night Mode"
-                  aria-label="Night Mode"
-                >
-                  <div className="size-3.5 rounded-full bg-white" />
-                </button>
-              </div>
+              {renderRawWithSyntaxHighlighting()}
             </div>
           )}
-        </div>
-
-        {/* Text Body Card */}
-        <div className="p-4 sm:p-6 md:p-8">
-          <div className={`p-6 md:p-10 rounded-2xl border transition-all duration-300 ${pageThemeStyles}`}>
-            {viewMode === "formatted" ? (
-              <article className={`space-y-6 ${fontSizes} select-text`}>
-                {parsedData.sections.map((section, idx) => {
-                  if (section.type === "heading") {
-                    return (
-                      <h2
-                        key={idx}
-                        className={`text-slate-900 dark:text-white font-extrabold leading-tight mt-8 mb-4 border-l-4 border-blue-500 pl-3 ${headingSizes}`}
-                      >
-                        {renderTextContent(section.text)}
-                      </h2>
-                    );
-                  } else {
-                    return (
-                      <p
-                        key={idx}
-                        className="text-justify whitespace-pre-wrap font-normal leading-relaxed break-words"
-                      >
-                        {renderTextContent(section.text)}
-                      </p>
-                    );
-                  }
-                })}
-              </article>
-            ) : (
-              // Syntax Highlighted Raw View
-              <div className="relative rounded-xl overflow-hidden border border-inherit bg-slate-950 text-slate-300">
-                <div className="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-slate-800 text-[10px] uppercase font-bold tracking-wider text-slate-500">
-                  <span>Raw Text Viewer</span>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(text);
-                    }}
-                    className="hover:text-slate-300 flex items-center gap-1 transition-colors cursor-pointer"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                    </svg>
-                    Copy Raw
-                  </button>
-                </div>
-                {renderRawWithSyntaxHighlighting()}
-              </div>
-            )}
-          </div>
         </div>
       </div>
     </div>

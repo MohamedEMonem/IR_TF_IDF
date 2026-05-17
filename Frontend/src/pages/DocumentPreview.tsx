@@ -3,6 +3,7 @@ import { Link, useParams, useLocation, useNavigate } from "react-router-dom";
 import { useGetDocumentQuery } from "../redux/api/searchApi";
 import type { DocumentResponse } from "../types/api";
 import DocumentRenderer from "../Components/DocumentRenderer";
+import DocumentMetadata from "../Components/DocumentMetadata";
 
 
 export default function DocumentPreview() {
@@ -88,6 +89,7 @@ export default function DocumentPreview() {
     return data && !(data instanceof Blob) ? (data as DocumentResponse) : null;
   }, [data]);
 
+
   const location = useLocation();
   const navigate = useNavigate();
   const prevQuery =
@@ -158,13 +160,12 @@ export default function DocumentPreview() {
       )}
 
       {doc && (
-        <div className="space-y-4">
-          <DocumentRenderer
-            text={doc.text}
-            query={prevQuery}
-            documentName={doc.name}
-            documentPath={doc.path}
-          />
+        <div className="space-y-4 animate-slide-up">
+          {/* Metadata Reusable Box (Top Box) */}
+          <DocumentMetadata name={doc.name} path={doc.path} text={doc.text} />
+
+          {/* Clean Body Content Document Renderer */}
+          <DocumentRenderer text={doc.text} query={prevQuery} />
         </div>
       )}
     </div>

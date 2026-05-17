@@ -4,6 +4,7 @@ import { useRankDocumentsMutation } from "../redux/api/searchApi";
 import { useGetDocumentQuery } from "../redux/api/searchApi";
 import type { RankResponseWithPagination } from "../types/api";
 import DocumentRenderer from "../Components/DocumentRenderer";
+import DocumentMetadata from "../Components/DocumentMetadata";
 
 
 type SearchLocationState = {
@@ -274,12 +275,20 @@ export default function Search() {
                 />
               </div>
             ) : previewData && !(previewData instanceof Blob) ? (
-              <DocumentRenderer
-                text={(previewData as unknown as { text?: string }).text || ""}
-                query={query}
-                documentName={(previewData as unknown as { name?: string }).name}
-                documentPath={(previewData as unknown as { path?: string }).path}
-              />
+              <div className="space-y-4 animate-slide-up">
+                {/* Reusable Metadata Card (Top Box) */}
+                <DocumentMetadata
+                  name={(previewData as unknown as { name?: string }).name || ""}
+                  path={(previewData as unknown as { path?: string }).path}
+                  text={(previewData as unknown as { text?: string }).text}
+                />
+
+                {/* Clean Body Content Document Renderer */}
+                <DocumentRenderer
+                  text={(previewData as unknown as { text?: string }).text || ""}
+                  query={query}
+                />
+              </div>
 
             ) : isPreviewError ? (
               <div className="text-sm text-red-600">Failed to load preview</div>
