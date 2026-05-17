@@ -178,25 +178,25 @@ export default function Search() {
         <div className="space-y-14">
           {results ? (
             // Render each ranked document using the provided article layout
-            results.results.map((r) => (
-              <article
-                key={r.doc_id}
-                className="group animate-slide-up will-change-transform"
-              >
-                <Link
-                  className="block cursor-pointer py-2 px-3 -mx-2 rounded-2xl hover:bg-linear-to-r hover:from-blue-50/40 hover:to-purple-50/40 transition-all duration-300 shadow-sm"
-                  to={`/document/${r.doc_id}`}
-                  state={{ query }}
-                  title={`Open result ${r.doc_id}`}
-                  data-discover="true"
+            results.results.map((r, idx) => {
+              const rankIndex = (page - 1) * pageSize + idx + 1;
+              return (
+                <article
+                  key={r.doc_id}
+                  className="group animate-slide-up will-change-transform"
                 >
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="size-7 rounded-lg bg-linear-to-br from-blue-100/80 to-purple-100/80 backdrop-blur-sm flex items-center justify-center text-sm font-semibold text-[#4285f4] shadow-sm border border-blue-200/30">
-                        {String(
-                          (r.name && r.name.charAt(0)) || "W",
-                        ).toUpperCase()}
-                      </div>
+                  <Link
+                    className="block cursor-pointer py-2 px-3 -mx-2 rounded-2xl hover:bg-linear-to-r hover:from-blue-50/40 hover:to-purple-50/40 transition-all duration-300 shadow-sm"
+                    to={`/document/${r.doc_id}`}
+                    state={{ query }}
+                    title={`Open result ${r.doc_id}`}
+                    data-discover="true"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="size-7 rounded-lg bg-linear-to-br from-blue-500/10 to-indigo-500/10 flex items-center justify-center text-xs font-semibold text-blue-600 shadow-2xs border border-blue-200/40 font-mono">
+                          #{rankIndex}
+                        </div>
                       <div className="text-sm text-[#202124]/60 group-hover:text-[#4285f4] font-normal antialiased tracking-wide transition-colors duration-200">
                         {r.path}
                       </div>
@@ -284,10 +284,6 @@ export default function Search() {
                       dangerouslySetInnerHTML={{ __html: r.snippet }}
                     />
                   </div>
-
-                  <p className="text-base sm:text-lg text-[#4d5156] leading-relaxed font-light antialiased tracking-wide">
-                    Learn the fundamentals of this document.
-                  </p>
                 </Link>
 
                 {expandedIds.has(r.doc_id) && (
@@ -498,7 +494,7 @@ export default function Search() {
 
                 <div className="mt-6 h-px bg-linear-to-r from-transparent via-blue-200/50 to-transparent opacity-50 group-hover:opacity-100 group-hover:via-blue-300/60 transition-opacity duration-300" />
               </article>
-            ))
+            )})
           ) : (
             <div className="text-sm text-[#70757a]">No results yet</div>
           )}
