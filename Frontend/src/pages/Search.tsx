@@ -3,6 +3,9 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useRankDocumentsMutation } from "../redux/api/searchApi";
 import { useGetDocumentQuery } from "../redux/api/searchApi";
 import type { RankResponseWithPagination } from "../types/api";
+import DocumentRenderer from "../Components/DocumentRenderer";
+import DocumentMetadata from "../Components/DocumentMetadata";
+
 
 type SearchLocationState = {
   query?: string;
@@ -272,11 +275,21 @@ export default function Search() {
                 />
               </div>
             ) : previewData && !(previewData instanceof Blob) ? (
-              <div className="prose max-w-none bg-white p-4 rounded">
-                <pre className="whitespace-pre-wrap text-sm">
-                  {(previewData as unknown as { text?: string }).text}
-                </pre>
+              <div className="space-y-4 animate-slide-up">
+                {/* Reusable Metadata Card (Top Box) */}
+                <DocumentMetadata
+                  name={(previewData as unknown as { name?: string }).name || ""}
+                  path={(previewData as unknown as { path?: string }).path}
+                  text={(previewData as unknown as { text?: string }).text}
+                />
+
+                {/* Clean Body Content Document Renderer */}
+                <DocumentRenderer
+                  text={(previewData as unknown as { text?: string }).text || ""}
+                  query={query}
+                />
               </div>
+
             ) : isPreviewError ? (
               <div className="text-sm text-red-600">Failed to load preview</div>
             ) : (
