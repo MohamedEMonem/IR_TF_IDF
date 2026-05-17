@@ -17,3 +17,9 @@ backend/media
 corpus/PDFs
 .DS_Store
 Thumbs.db
+node_modules
+dist
+.env
+.git
+Dockerfile
+.dockerignore
