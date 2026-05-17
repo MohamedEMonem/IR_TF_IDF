@@ -1,9 +1,10 @@
-import { useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState, type FormEvent } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useGetStatusQuery } from "../redux/api/searchApi";
 
 const Header = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [query, setQuery] = useState("");
   const { data: statusData } = useGetStatusQuery(undefined, {
     pollingInterval: 2000,
@@ -16,11 +17,21 @@ const Header = () => {
       ? "Indexing"
       : (backendStatus ?? "Indexed")
     : "Idle";
+
+  useEffect(() => {
+    const queryFromUrl = new URLSearchParams(location.search).get("q")?.trim();
+    const queryFromState = (location.state as { query?: string } | null)?.query;
+    const nextQuery = queryFromUrl || queryFromState;
+    if (typeof nextQuery === "string") {
+      setQuery(nextQuery);
+    }
+  }, [location.search, location.state]);
+
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const trimmed = query.trim();
     if (!trimmed) return;
-    navigate("/search", { state: { query: trimmed } });
+    navigate(`/search?q=${encodeURIComponent(trimmed)}`);
   };
   return (
     <header className="sticky top-0 z-50 animate-slide-down">

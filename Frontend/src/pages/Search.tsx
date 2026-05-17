@@ -1,23 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useRankDocumentsMutation } from "../redux/api/searchApi";
 import { useGetDocumentQuery } from "../redux/api/searchApi";
 import type { RankResponseWithPagination } from "../types/api";
 import DocumentRenderer from "../Components/DocumentRenderer";
 import DocumentMetadata from "../Components/DocumentMetadata";
 
-
-type SearchLocationState = {
-  query?: string;
-};
-
 const FALLBACK_QUERY = "information retrieval";
 
 export default function Search() {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const state = location.state as SearchLocationState | null;
-  const query = state?.query?.trim() ?? FALLBACK_QUERY;
+  const [searchParams] = useSearchParams();
+  const query = searchParams.get("q")?.trim() || FALLBACK_QUERY;
   const [results, setResults] = useState<RankResponseWithPagination | null>(
     null,
   );
@@ -106,24 +99,8 @@ export default function Search() {
   };
 
   useEffect(() => {
-    const nextQuery = state?.query?.trim();
-
-    if (!nextQuery) {
-      navigate("/", { replace: true });
-      return;
-    }
-
-    // fetch results for the provided query (start at page 1)
-    void rankDocuments({
-      query: nextQuery,
-      top_k: pageSize,
-      page: 1,
-      page_size: pageSize,
-    })
-      .unwrap()
-      .then((response) => setResults(response))
-      .catch(() => setResults(null));
-  }, [navigate, rankDocuments, state?.query]);
+    setPage(1);
+  }, [query]);
 
   // fetch when page changes
   useEffect(() => {
