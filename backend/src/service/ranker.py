@@ -52,74 +52,54 @@ class Ranker:
         )
 
     def rank(self, query: str, page: int = 1, page_size: int = 10) -> RankResponse:
-        started_at = perf_counter()
         query_info = self.explain_query(query)
         query_vector = query_info.vector
         
-        # 1. Convert to set once for fast lookups
+        started_at = perf_counter()
+        
         query_terms_set = set(query_info.tokens) 
+        query_terms_list = list(query_terms_set)
         idf = self._corpus_manager.get_idf()
+        inverted_index = self._corpus_manager.get_inverted_index()
 
-        ranked_documents: List[RankedDocument] = []
-        for entry in self._corpus_manager.get_indexed_documents():
+        term_cache = {
+            term: query_vector.get(term, 0.0) * idf.get(term, 0.0)
+            for term in query_terms_set
+        }
+
+        # 1. Grab ONLY the matched documents instantly
+        matching_doc_indices = set()
+        for term in query_terms_set:
+            matching_doc_indices.update(inverted_index.get(term, set()))
+
+        all_indexed = self._corpus_manager.get_indexed_documents()
+        raw_scored_docs = []
+
+        # 2. FAST LOOP: Only do Math (No string snippets!)
+        for idx in matching_doc_indices:
+            entry = all_indexed[idx]
             document = entry["document"]
             
-            # 2. Find matched terms BEFORE doing heavy math
             matched_terms_set = query_terms_set.intersection(document.term_counts)
-            
-            # 3. If the document doesn't have the word, SKIP IT completely!
             if not matched_terms_set:
                 continue 
                 
-            # 4. Do the math ON THE FLY to save RAM
-            matched_terms = sorted(matched_terms_set)
             dot_product = 0.0
-            matched_details = []
+            doc_length = document.length
             
-            for term in matched_terms:
-                # Calculate doc stats instantly (Lightweight & Fast)
-                doc_tf = document.term_counts[term] / document.length
-                doc_idf = idf.get(term, 0.0)
-                doc_tfidf = doc_tf * doc_idf
-                
-                # Add to dot product for the final score
-                query_tfidf = query_vector.get(term, 0.0)
-                dot_product += (query_tfidf * doc_tfidf)
-                
-                # Build details for the frontend
-                matched_details.append(
-                    MatchedTerm(
-                        term=term, 
-                        doc_tf=doc_tf, 
-                        doc_idf=doc_idf, 
-                        doc_tfidf=doc_tfidf,
-                        query_tf=query_info.tf.get(term, 0.0), 
-                        query_idf=doc_idf, 
-                        query_tfidf=query_tfidf,
-                    )
-                )
+            for term in matched_terms_set:
+                doc_tf = document.term_counts[term] / doc_length
+                dot_product += doc_tf * term_cache[term]
 
-            # Fast Cosine Similarity math: Dot product / (query_norm * doc_norm)
             doc_norm = entry["norm"]
             score = dot_product / (query_info.norm * doc_norm) if query_info.norm and doc_norm else 0.0
 
-            ranked_documents.append(
-                RankedDocument(
-                    doc_id=document.doc_id,
-                    path=document.path,
-                    name=document.name,
-                    score=score,
-                    doc_length=document.length,
-                    doc_norm=doc_norm,
-                    snippet=build_snippet(document.text, list(query_terms_set)),
-                    matched_terms=matched_terms,
-                    matched_details=matched_details,
-                )
-            )
+            raw_scored_docs.append((score, document, doc_norm, matched_terms_set))
 
-        ranked_documents.sort(key=lambda item: item.score, reverse=True)
+        # 3. Sort ONLY the lightweight math results
+        raw_scored_docs.sort(key=lambda item: item[0], reverse=True)
         
-        total_matches = len(ranked_documents)
+        total_matches = len(raw_scored_docs)
         total_pages = math.ceil(total_matches / page_size) if total_matches > 0 else 1
         
         if page > total_pages:
@@ -127,7 +107,43 @@ class Ranker:
             
         start_idx = (page - 1) * page_size
         end_idx = start_idx + page_size
-        paginated_results = ranked_documents[start_idx:end_idx]
+        paginated_raw = raw_scored_docs[start_idx:end_idx]
+
+        # 4. POST-PROCESSING: Build text snippets ONLY for the 10 shown results
+        final_results = []
+        for score, document, doc_norm, matched_terms_set in paginated_raw:
+            matched_terms = sorted(matched_terms_set)
+            matched_details = []
+            
+            for term in matched_terms:
+                doc_tf = document.term_counts[term] / document.length
+                doc_idf = idf.get(term, 0.0)
+                
+                matched_details.append(
+                    MatchedTerm(
+                        term=term, 
+                        doc_tf=doc_tf, 
+                        doc_idf=doc_idf, 
+                        doc_tfidf=doc_tf * doc_idf,
+                        query_tf=query_info.tf.get(term, 0.0), 
+                        query_idf=doc_idf, 
+                        query_tfidf=query_vector.get(term, 0.0),
+                    )
+                )
+
+            final_results.append(
+                RankedDocument(
+                    doc_id=document.doc_id,
+                    path=document.path,
+                    name=document.name,
+                    score=score,
+                    doc_length=document.length,
+                    doc_norm=doc_norm,
+                    snippet=build_snippet(document.text, query_terms_list),
+                    matched_terms=matched_terms,
+                    matched_details=matched_details,
+                )
+            )
 
         return RankResponse(
             query={
@@ -151,9 +167,6 @@ class Ranker:
                 "has_next": page < total_pages,
                 "has_prev": page > 1,
             },
-            results=paginated_results,
+            results=final_results,
             rank_time_ms=(perf_counter() - started_at) * 1000.0,
         )
-
-    def get_metadata(self) -> Dict[str, object]:
-        return self._corpus_manager.get_metadata()
