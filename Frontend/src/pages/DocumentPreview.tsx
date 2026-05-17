@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useLocation, useNavigate } from "react-router-dom";
 import { useGetDocumentQuery } from "../redux/api/searchApi";
 import type { DocumentResponse } from "../types/api";
+import DocumentRenderer from "../Components/DocumentRenderer";
+
 
 export default function DocumentPreview() {
   const { docId } = useParams<{ docId: string }>();
@@ -157,18 +159,12 @@ export default function DocumentPreview() {
 
       {doc && (
         <div className="space-y-4">
-          <div className="p-4 bg-white rounded-lg border">
-            <div className="text-sm text-[#70757a]">{doc.name}</div>
-            <div className="text-xs font-mono text-[#202124] bg-gray-50 px-3 py-2 rounded mt-2">
-              {doc.path}
-            </div>
-          </div>
-
-          <div className="prose max-w-none bg-white p-6 rounded shadow-sm border">
-            <pre className="whitespace-pre-wrap text-sm text-[#3c3c3c]">
-              {doc.text}
-            </pre>
-          </div>
+          <DocumentRenderer
+            text={doc.text}
+            query={prevQuery}
+            documentName={doc.name}
+            documentPath={doc.path}
+          />
         </div>
       )}
     </div>
