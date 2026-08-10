@@ -38,6 +38,20 @@ function cleanCorpusNoise(str: string): string {
 }
 
 /**
+ * Detects if text looks like a date (e.g., "August 14, 2014", "2024-01-15", "Jan 1, 2024")
+ */
+function isDateString(text: string): boolean {
+  if (!text || text.length > 50) return false;
+  const datePatterns = [
+    /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4}\b/i,
+    /\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b/,
+    /\b\d{4}[/-]\d{1,2}[/-]\d{1,2}\b/,
+    /\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|Mon|Tue|Wed|Thu|Fri|Sat|Sun)\b.*\d{4}\b/i,
+  ];
+  return datePatterns.some(pattern => pattern.test(text));
+}
+
+/**
  * Parses corpus text, extracting metadata IDs and splitting tags <h> and <p>.
  */
 function parseCorpusText(text: string): ParsedCorpus {
@@ -393,24 +407,51 @@ export default function DocumentRenderer({
             <article className={`space-y-6 ${fontSizes} select-text`}>
               {parsedData.sections.map((section, idx) => {
                 if (section.type === "heading") {
-                  return (
+                  const isDate = isDateString(section.text);
+                  const isMainHeader = !isDate && parsedData.sections.slice(0, idx).every(s => isDateString(s.text) || s.type !== "heading");
+                  
+                  const headingColor = {
+                    light: "text-slate-900",
+                    sepia: "text-[#423427]",
+                    dark: "text-slate-100",
+                  }[theme];
+                  
+                  if (isDate) {
+                    return (
+                      <h4
+                        key={idx}
+                        className={`font-bold leading-tight mt-8 mb-4 border-l-4 border-blue-500 pl-3 ${headingColor} text-base sm:text-lg font-semibold text-slate-500 dark:text-slate-400`}
+                      >
+                        {renderTextContent(section.text)}
+                      </h4>
+                    );
+                  }
+                  
+                  return isMainHeader ? (
                     <h2
                       key={idx}
-                      className={`text-slate-900 dark:text-white font-extrabold leading-tight mt-8 mb-4 border-l-4 border-blue-500 pl-3 ${headingSizes}`}
+                      className={`font-bold leading-tight mt-8 mb-4 border-l-4 border-blue-500 pl-3 ${headingColor} ${headingSizes}`}
                     >
                       {renderTextContent(section.text)}
                     </h2>
-                  );
-                } else {
-                  return (
-                    <p
+                  ) : (
+                    <h3
                       key={idx}
-                      className="text-justify whitespace-pre-wrap font-normal leading-relaxed wrap-break-words"
+                      className={`font-bold leading-tight mt-8 mb-4 border-l-4 border-blue-500 pl-3 ${headingColor} text-lg sm:text-xl font-semibold`}
                     >
                       {renderTextContent(section.text)}
-                    </p>
+                    </h3>
                   );
                 }
+                
+                return (
+                  <p
+                    key={idx}
+                    className="text-justify whitespace-pre-wrap font-normal leading-relaxed wrap-break-words"
+                  >
+                    {renderTextContent(section.text)}
+                  </p>
+                );
               })}
             </article>
           ) : (
