@@ -29,6 +29,27 @@ function highlightText(text: string, queryStr: string | null): string {
   return text.replace(regex, `<strong class="font-bold text-blue-800">$1</strong>`);
 }
 
+function getPaginationRange(currentPage: number, totalPages: number): number[] {
+  const windowSize = 10;
+  let startPage = currentPage - Math.floor(windowSize / 2);
+
+  if (startPage < 1) {
+    startPage = 1;
+  }
+
+  let endPage = startPage + windowSize - 1;
+  if (endPage > totalPages) {
+    endPage = totalPages;
+    startPage = Math.max(1, endPage - windowSize + 1);
+  }
+
+  const pages: number[] = [];
+  for (let i = startPage; i <= endPage; i++) {
+    pages.push(i);
+  }
+  return pages;
+}
+
 export default function Search() {
   const [searchParams] = useSearchParams();
   const query = searchParams.get("q")?.trim() || FALLBACK_QUERY;
@@ -376,14 +397,13 @@ export default function Search() {
               const p = results.pagination!;
               const start = (p.page - 1) * p.page_size + 1;
               const end = Math.min(p.page * p.page_size, p.total_matches);
-              return (
-                <div className="flex items-center justify-center gap-4">
-                  <div className="text-sm text-[#70757a]">
-                    Showing {start}–{end} of {p.total_matches.toLocaleString()}{" "}
-                    results
-                  </div>
+              const pageNumbers = getPaginationRange(p.page, p.total_pages);
 
-                  <div className="inline-flex items-center gap-2">
+              return (
+                <div className="flex flex-col items-center justify-center gap-3">
+                  {/* Google-Style Numbered Pagination Bar */}
+                  <div className="inline-flex items-center justify-center gap-1 sm:gap-2 select-none">
+                    {/* Prev Button */}
                     <button
                       onClick={() => setPage(Math.max(1, page - 1))}
                       disabled={!p.has_prev}
@@ -391,9 +411,27 @@ export default function Search() {
                     >
                       Prev
                     </button>
-                    <div className="text-sm text-[#70757a] px-2">
-                      Page {p.page} of {p.total_pages}
-                    </div>
+
+                    {/* Number Buttons */}
+                    {pageNumbers.map((pageNum) => {
+                      const isCurrent = pageNum === p.page;
+
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => setPage(pageNum)}
+                          className={`px-2 py-1 text-sm font-medium transition-colors ${
+                            isCurrent
+                              ? "text-[#1a73e8] font-bold"
+                              : "text-[#1a0dab] hover:underline cursor-pointer"
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+
+                    {/* Next Button */}
                     <button
                       onClick={() => setPage(Math.min(p.total_pages, page + 1))}
                       disabled={!p.has_next}
@@ -401,6 +439,12 @@ export default function Search() {
                     >
                       Next
                     </button>
+                  </div>
+
+                  {/* Summary Count */}
+                  <div className="text-xs text-[#70757a]">
+                    Showing {start}–{end} of {p.total_matches.toLocaleString()}{" "}
+                    results
                   </div>
                 </div>
               );
