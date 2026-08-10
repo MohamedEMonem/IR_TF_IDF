@@ -8,6 +8,7 @@ from uuid import uuid4
 from django.core.files.uploadedfile import UploadedFile
 from django.http import HttpRequest, JsonResponse, FileResponse, Http404
 from django.utils.text import get_valid_filename
+from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import csrf_exempt
 
 from .schemas import serialize_rank_response
@@ -101,43 +102,44 @@ def meta_view(request: HttpRequest) -> JsonResponse:
     return _success("Corpus metadata", CORPUS_MANAGER.get_metadata(), request.path)
 
 
+@never_cache
 def document_view(request: HttpRequest, doc_id: int):
     """
     [GET] /api/document/<doc_id>/
     
     Input (URL Path Parameter):
     - doc_id (int): The ID of the document to retrieve.
+    - raw / download (optional query params): Streams the binary PDF file for PDF.js viewer / downloading.
     
     Output:
-    - PDF Files: FileResponse streaming the binary file (application/pdf).
-    - Text Files: JSON response containing {doc_id, name, path, text}.
-    - 404 Not Found: If document does not exist in the index or on disk.
+    - Default: JSON response containing {doc_id, name, path, text}.
+    - If raw=true or download=true & PDF: FileResponse streaming binary PDF file.
+    - 404 Not Found: If document does not exist in the index.
     """
     if request.method != "GET":
         return _failure("Method not allowed", request.path, status=405)
 
     doc = next((d for d in CORPUS_MANAGER.get_documents() if d.doc_id == doc_id), None)
     if not doc:
-        raise Http404("Document not found in the index.")
+        return _failure("Document not found in the index.", request.path, status=404)
 
-    # 1. If it's a PDF, stream it from the hard drive
-    if doc.path.lower().endswith('.pdf'):
+    # 1. Stream binary PDF file if explicitly requested (for PDF.js viewer or downloading)
+    if (request.GET.get('download') == 'true' or request.GET.get('raw') == 'true') and doc.path.lower().endswith('.pdf'):
         file_path = CORPUS_DIR.parent / doc.path 
-        
         if not file_path.exists():
-            raise Http404(f"PDF file not found on disk at {file_path}")
-            
-        return FileResponse(file_path.open('rb'), content_type='application/pdf')
-    
-    # 2. If it's text, return the raw data as JSON so frontend can render it
-    else:
-        payload = {
-            "doc_id": doc.doc_id,
-            "name": doc.name,
-            "path": doc.path,
-            "text": doc.text
-        }
-        return _success("Document retrieved", payload, request.path)
+            return _failure(f"PDF file not found on disk at {file_path}", request.path, status=404)
+        response = FileResponse(file_path.open('rb'), content_type='application/pdf', as_attachment=False)
+        response['Content-Disposition'] = f'inline; filename="{file_path.name}"'
+        return response
+
+    # 2. Return extracted text and metadata as JSON for all documents (text and PDF alike)
+    payload = {
+        "doc_id": doc.doc_id,
+        "name": doc.name,
+        "path": doc.path,
+        "text": doc.text
+    }
+    return _success("Document retrieved", payload, request.path)
 
 
 def _save_uploaded_file(uploaded_file: UploadedFile) -> dict:

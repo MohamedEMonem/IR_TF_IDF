@@ -140,7 +140,15 @@ class CorpusManager:
                             cached_documents = cache_data.get("documents", [])
                             cached_registry = cache_data.get("registry", {})
                     except Exception as e:
-                        print(f"⚠️ Failed to read cache: {e}. Building fresh.")
+                        print(f"[Warning] Failed to read cache: {e}. Building fresh.")
+                if not force_rebuild and cache_file.exists():
+                    try:
+                        with cache_file.open("rb") as f:
+                            cache_data = pickle.load(f)
+                            cached_documents = cache_data.get("documents", [])
+                            cached_registry = cache_data.get("registry", {})
+                    except Exception as e:
+                        print(f"[Warning] Failed to read cache: {e}. Building fresh.")
 
                 docs_to_keep = []
                 paths_to_parse = []

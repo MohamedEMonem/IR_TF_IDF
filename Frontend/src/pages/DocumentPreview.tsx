@@ -1,7 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useLocation, useNavigate } from "react-router-dom";
 import { useGetDocumentQuery } from "../redux/api/searchApi";
-import type { DocumentResponse } from "../types/api";
 import DocumentRenderer from "../Components/DocumentRenderer";
 import DocumentMetadata from "../Components/DocumentMetadata";
 
@@ -10,85 +8,35 @@ export default function DocumentPreview() {
   const { docId } = useParams<{ docId: string }>();
 
   const id = Number(docId || 0);
-  const { data, isLoading, isFetching, isError, error } = useGetDocumentQuery(
+  const { data: doc, isLoading, isFetching, isError, error } = useGetDocumentQuery(
     id,
     {
       skip: !id,
     },
   );
 
-  const pdfUrl = useMemo(() => {
-    if (data instanceof Blob) return URL.createObjectURL(data);
-    return null;
-  }, [data]);
-
-  //   useEffect(() => {
-  //     return () => {
-  //       if (pdfUrl) URL.revokeObjectURL(pdfUrl);
-  //     };
-  //   }, [pdfUrl]);
-
-  // If API returned JSON metadata but the document path is a PDF, fetch the PDF as a blob fallback
-  const [fallbackPdfUrl, setFallbackPdfUrl] = useState<string | null>(null);
-  useEffect(() => {
-    let mounted = true;
-    async function fetchFallback() {
-      const docMeta =
-        data && !(data instanceof Blob) ? (data as DocumentResponse) : null;
-      if (!docMeta) return;
-      const p = docMeta.path || "";
-      if (!p.toLowerCase().endsWith(".pdf")) return;
-      try {
-        const res = await fetch(`/api/document/${id}`);
-        if (!res.ok) throw new Error(`status ${res.status}`);
-        const b = await res.blob();
-        if (!mounted) return;
-        const url = URL.createObjectURL(b);
-        setFallbackPdfUrl(url);
-      } catch (err) {
-        // keep silent; error shown via isError
-        // log for diagnostics
-        console.debug("fallback pdf fetch failed", err);
-      }
-    }
-    fetchFallback();
-    return () => {
-      mounted = false;
-      if (fallbackPdfUrl) {
-        URL.revokeObjectURL(fallbackPdfUrl);
-        setFallbackPdfUrl(null);
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, id]);
-
   function getErrorMessage(err: unknown): string {
     if (!err) return "Failed to load document";
     if (typeof err === "string") return err;
-    if (typeof err === "object") {
+    if (typeof err === "object" && err !== null) {
       const e = err as Record<string, unknown>;
-      if (e.data && typeof e.data === "object") {
+      if (e.data && typeof e.data === "object" && e.data !== null) {
         const d = e.data as Record<string, unknown>;
         if (typeof d.message === "string") return d.message;
+        if (d.error && typeof d.error === "object" && d.error !== null) {
+          const de = d.error as Record<string, unknown>;
+          if (typeof de.message === "string") return de.message;
+        }
       }
-      if (e.error && typeof e.error === "string") return e.error;
-      if (e.error && typeof e.error === "object") {
+      if (typeof e.error === "string") return e.error;
+      if (e.error && typeof e.error === "object" && e.error !== null) {
         const er = e.error as Record<string, unknown>;
         if (typeof er.message === "string") return er.message;
       }
       if (typeof e.message === "string") return e.message;
     }
-    try {
-      return JSON.stringify(err);
-    } catch {
-      return String(err);
-    }
+    return "Failed to load document";
   }
-
-  const doc = useMemo(() => {
-    return data && !(data instanceof Blob) ? (data as DocumentResponse) : null;
-  }, [data]);
-
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -96,24 +44,24 @@ export default function DocumentPreview() {
     (location.state as { query?: string } | null)?.query ?? null;
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
       <div className="mb-6 flex items-center justify-between">
         <h2 className="text-xl font-semibold text-[#202124]">
           Document Preview
         </h2>
-        <div className="text-sm">
+        <div className="flex items-center gap-4 text-sm">
           {prevQuery ? (
             <Link
               to="/search"
               state={{ query: prevQuery }}
-              className="text-[#4285f4] hover:underline"
+              className="text-[#4285f4] hover:underline font-medium"
             >
               ← Back to results
             </Link>
           ) : (
             <button
               onClick={() => navigate(-1)}
-              className="text-[#4285f4] hover:underline"
+              className="text-[#4285f4] hover:underline font-medium cursor-pointer"
             >
               ← Back to results
             </button>
@@ -131,40 +79,12 @@ export default function DocumentPreview() {
         </div>
       )}
 
-      {(pdfUrl || fallbackPdfUrl) && (
-        <div className="w-full h-[80vh] border rounded overflow-hidden">
-          <object
-            data={fallbackPdfUrl || pdfUrl || undefined}
-            type="application/pdf"
-            className="w-full h-full"
-          >
-            <embed
-              src={fallbackPdfUrl || pdfUrl || undefined}
-              type="application/pdf"
-              className="w-full h-full"
-            />
-          </object>
-
-          <div className="mt-2 text-right">
-            <a
-              href={fallbackPdfUrl || pdfUrl || `/api/document/${id}`}
-              className="text-sm text-[#4285f4] hover:underline"
-              target="_blank"
-              rel="noreferrer"
-              download
-            >
-              Download PDF
-            </a>
-          </div>
-        </div>
-      )}
-
       {doc && (
-        <div className="space-y-4 animate-slide-up">
+        <div className="space-y-6 animate-slide-up">
           {/* Metadata Reusable Box (Top Box) */}
           <DocumentMetadata name={doc.name} path={doc.path} text={doc.text} />
 
-          {/* Clean Body Content Document Renderer */}
+          {/* Body Content Document Renderer */}
           <DocumentRenderer text={doc.text} query={prevQuery} />
         </div>
       )}

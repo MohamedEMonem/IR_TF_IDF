@@ -1,10 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useRankDocumentsMutation } from "../redux/api/searchApi";
-import { useGetDocumentQuery } from "../redux/api/searchApi";
 import type { RankResponseWithPagination } from "../types/api";
-import DocumentRenderer from "../Components/DocumentRenderer";
-import DocumentMetadata from "../Components/DocumentMetadata";
 import VectorDiagnostics from "../Components/VectorDiagnostics";
 
 const FALLBACK_QUERY = "information retrieval";
@@ -42,76 +39,6 @@ export default function Search() {
   const pageSize = 10;
   const [rankDocuments] = useRankDocumentsMutation();
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
-  const [previewId, setPreviewId] = useState<number | null>(null);
-
-  const {
-    data: previewData,
-    isLoading: isPreviewLoading,
-    isFetching: isPreviewFetching,
-    isError: isPreviewError,
-    // previewError not used, omit
-  } = useGetDocumentQuery(previewId ?? 0, { skip: !previewId });
-
-  const previewPdfUrl = useMemo(() => {
-    if (previewData instanceof Blob) return URL.createObjectURL(previewData);
-    return null;
-  }, [previewData]);
-
-  useEffect(() => {
-    return () => {
-      if (previewPdfUrl) URL.revokeObjectURL(previewPdfUrl);
-    };
-  }, [previewPdfUrl]);
-
-  // Fallback: if API returns JSON but path ends with .pdf, fetch the blob directly
-  const [previewFallbackUrl, setPreviewFallbackUrl] = useState<string | null>(
-    null,
-  );
-
-  useEffect(() => {
-    // debugging: log preview data shape when it changes
-    console.debug("previewData changed", {
-      previewData,
-      previewPdfUrl,
-      previewFallbackUrl,
-    });
-  }, [previewData, previewPdfUrl, previewFallbackUrl]);
-
-  useEffect(() => {
-    let mounted = true;
-    async function fetchPdfFallback() {
-      if (!previewId) return;
-      if (previewData && !(previewData instanceof Blob)) {
-        const maybePath =
-          (previewData as unknown as { path?: string })?.path ?? "";
-        if (
-          typeof maybePath === "string" &&
-          maybePath.toLowerCase().endsWith(".pdf")
-        ) {
-          try {
-            const res = await fetch(`/api/document/${previewId}`);
-            if (!res.ok) throw new Error(`status ${res.status}`);
-            const b = await res.blob();
-            if (!mounted) return;
-            const url = URL.createObjectURL(b);
-            setPreviewFallbackUrl(url);
-          } catch (err) {
-            // log for debugging
-            console.debug("PDF fallback fetch failed", err);
-          }
-        }
-      }
-    }
-    fetchPdfFallback();
-    return () => {
-      mounted = false;
-      if (previewFallbackUrl) {
-        URL.revokeObjectURL(previewFallbackUrl);
-        setPreviewFallbackUrl(null);
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [previewData, previewId]);
 
   const toggleExpanded = (id: number) => {
     setExpandedIds((prev) => {
@@ -141,63 +68,6 @@ export default function Search() {
       <div className="max-w-4xl animate-fade-in pb-20">
         <VectorDiagnostics results={results} query={query} />
 
-        {/* Inline Document Preview */}
-        {previewId && (
-          <div className="mb-6 p-4 rounded-lg bg-white border shadow-sm">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-sm font-medium">Preview: {previewId}</div>
-              <div className="flex items-center gap-3">
-                <button
-                  className="text-sm text-[#4285f4] hover:underline"
-                  onClick={() => setPreviewId(null)}
-                >
-                  Close
-                </button>
-                <a
-                  className="text-sm text-[#70757a] hover:underline"
-                  href={`/document/${previewId}`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Open in new tab
-                </a>
-              </div>
-            </div>
-
-            {isPreviewLoading || isPreviewFetching ? (
-              <div className="text-sm text-[#70757a]">Loading preview…</div>
-            ) : previewPdfUrl ? (
-              <div className="w-full h-[60vh] border rounded overflow-hidden">
-                <iframe
-                  title={`preview-${previewId}`}
-                  src={previewFallbackUrl || previewPdfUrl || undefined}
-                  className="w-full h-full"
-                />
-              </div>
-            ) : previewData && !(previewData instanceof Blob) ? (
-              <div className="space-y-4 animate-slide-up">
-                {/* Reusable Metadata Card (Top Box) */}
-                <DocumentMetadata
-                  name={(previewData as unknown as { name?: string }).name || ""}
-                  path={(previewData as unknown as { path?: string }).path}
-                  text={(previewData as unknown as { text?: string }).text}
-                />
-
-                {/* Clean Body Content Document Renderer */}
-                <DocumentRenderer
-                  text={(previewData as unknown as { text?: string }).text || ""}
-                  query={query}
-                />
-              </div>
-
-            ) : isPreviewError ? (
-              <div className="text-sm text-red-600">Failed to load preview</div>
-            ) : (
-              <div className="text-sm text-[#70757a]">No preview available</div>
-            )}
-          </div>
-        )}
-
         <div className="space-y-14">
           {results ? (
             // Render each ranked document using the provided article layout
@@ -208,106 +78,83 @@ export default function Search() {
                   key={r.doc_id}
                   className="group animate-slide-up will-change-transform"
                 >
-                  <Link
-                    className="block cursor-pointer py-2 px-3 -mx-2 rounded-2xl hover:bg-linear-to-r hover:from-blue-50/40 hover:to-purple-50/40 transition-all duration-300 shadow-sm"
-                    to={`/document/${r.doc_id}`}
-                    state={{ query }}
-                    title={`Open result ${r.doc_id}`}
-                    data-discover="true"
-                  >
+                  <div className="py-2 px-3 -mx-2 rounded-2xl hover:bg-linear-to-r hover:from-blue-50/40 hover:to-purple-50/40 transition-all duration-300 shadow-sm">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-3">
                         <div className="size-7 rounded-lg bg-linear-to-br from-blue-500/10 to-indigo-500/10 flex items-center justify-center text-xs font-semibold text-blue-600 shadow-2xs border border-blue-200/40 font-mono">
                           #{rankIndex}
                         </div>
-                      <div className="text-sm text-[#202124]/60 group-hover:text-[#4285f4] font-normal antialiased tracking-wide transition-colors duration-200">
-                        {r.path}
+                        <div className="text-sm text-[#202124]/60 group-hover:text-[#4285f4] font-normal antialiased tracking-wide transition-colors duration-200">
+                          {r.path}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <div className="text-xs text-[#70757a] font-light px-3 py-1 bg-gray-50 rounded-full">
+                          Doc {r.doc_id}
+                        </div>
+                        <button
+                          className="p-1.5 hover:bg-blue-50/40 rounded-full transition-colors duration-200 cursor-pointer"
+                          title={
+                            expandedIds.has(r.doc_id) ? "collapse" : "expand"
+                          }
+                          aria-label={
+                            expandedIds.has(r.doc_id) ? "collapse" : "expand"
+                          }
+                          onClick={() => toggleExpanded(r.doc_id)}
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="24"
+                            height="24"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth={2}
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className={`lucide lucide-chevron-up size-4 text-[#4285f4] transform transition-transform duration-200 ${expandedIds.has(r.doc_id) ? "-rotate-180" : ""}`}
+                          >
+                            <path d="m18 15-6-6-6 6" />
+                          </svg>
+                        </button>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <div className="text-xs text-[#70757a] font-light px-3 py-1 bg-gray-50 rounded-full">
-                        Doc {r.doc_id}
-                      </div>
-                      <button
-                        className="p-1.5 hover:bg-blue-50/40 rounded-full transition-colors duration-200"
-                        title={
-                          expandedIds.has(r.doc_id) ? "collapse" : "expand"
-                        }
-                        aria-label={
-                          expandedIds.has(r.doc_id) ? "collapse" : "expand"
-                        }
-                        /* aria-expanded removed to satisfy linter; state still indicated via chevron rotation */
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          toggleExpanded(r.doc_id);
-                        }}
+                    {r.path?.toLowerCase().endsWith(".pdf") ? (
+                      <a
+                        href={`/api/document/${r.doc_id}?raw=true`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex flex-wrap items-center gap-2 group/title mb-3"
+                        title="Open in Microsoft Edge PDF Viewer"
                       >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="24"
-                          height="24"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth={2}
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          className={`lucide lucide-chevron-up size-4 text-[#4285f4] transform transition-transform duration-200 ${expandedIds.has(r.doc_id) ? "-rotate-180" : ""}`}
-                        >
-                          <path d="m18 15-6-6-6 6" />
-                        </svg>
-                      </button>
+                        <h3 className="text-2xl sm:text-3xl text-[#1a0dab] group-hover/title:text-[#1a73e8] leading-snug font-normal tracking-tight antialiased transition-colors duration-200 hover:underline">
+                          {r.name}
+                        </h3>
+                        <span className="px-1.5 py-0.5 text-[10px] font-bold font-mono tracking-wider uppercase text-red-600 bg-red-50 border border-red-200/80 rounded-md shadow-2xs select-none">
+                          PDF
+                        </span>
+                      </a>
+                    ) : (
                       <Link
-                        className="p-1.5 hover:bg-purple-50 rounded-full transition-colors duration-200 group/link"
                         to={`/document/${r.doc_id}`}
                         state={{ query }}
-                        data-discover="true"
-                        title={`Open ${r.doc_id}`}
+                        className="inline-flex flex-wrap items-center gap-2 group/title mb-3"
                       >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="24"
-                          height="24"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth={2}
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          className="lucide lucide-external-link size-4 text-[#70757a] group-hover/link:text-[#4285f4]"
-                        >
-                          <path d="M15 3h6v6" />
-                          <path d="M10 14 21 3" />
-                          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                        </svg>
+                        <h3 className="text-2xl sm:text-3xl text-[#1a0dab] group-hover/title:text-[#1a73e8] leading-snug font-normal tracking-tight antialiased transition-colors duration-200 hover:underline">
+                          {r.name}
+                        </h3>
                       </Link>
-                      <button
-                        className="ml-2 px-2 py-1 text-xs bg-blue-50 text-[#4285f4] rounded hover:bg-blue-100"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setPreviewId(r.doc_id);
-                        }}
-                        title="Preview document"
-                      >
-                        Preview
-                      </button>
+                    )}
+
+                    <div className="mb-2 pl-4 border-l-2 border-blue-200/40 transition-colors duration-300">
+                      <p
+                        className="text-sm text-[#4285f4] font-normal italic antialiased"
+                        dangerouslySetInnerHTML={{ __html: highlightText(r.snippet, query) }}
+                      />
                     </div>
                   </div>
-
-                  <h3 className="text-2xl sm:text-3xl text-[#1a0dab] group-hover:text-[#1a73e8] mb-3 leading-snug font-normal tracking-tight antialiased transition-colors duration-200">
-                    {r.name}
-                  </h3>
-
-                  <div className="mb-2 pl-4 border-l-2 border-blue-200/40 group-hover:border-blue-400/60 transition-colors duration-300">
-                    <p
-                      className="text-sm text-[#4285f4] font-normal italic antialiased"
-                      dangerouslySetInnerHTML={{ __html: highlightText(r.snippet, query) }}
-                    />
-                  </div>
-                </Link>
 
                 {expandedIds.has(r.doc_id) && (
                   <div className="mt-4 px-4 py-6 bg-linear-to-br from-blue-50/60 to-purple-50/60 rounded-2xl border border-blue-100/50 animate-fade-in shadow-sm">

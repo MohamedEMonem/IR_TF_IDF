@@ -30,13 +30,13 @@ export const searchApi = createApi({
     getHealth: builder.query<HealthResponse, void>({
       query: () => "/health",
       transformResponse: (response: ApiEnvelope<HealthResponse>) =>
-        response.data,
+        response?.data,
     }),
 
     getMeta: builder.query<CorpusMetadata, void>({
       query: () => "/meta",
       transformResponse: (response: ApiEnvelope<CorpusMetadata>) =>
-        response.data,
+        response?.data,
     }),
 
     rankDocuments: builder.mutation<RankResponseWithPagination, RankRequest>({
@@ -52,7 +52,7 @@ export const searchApi = createApi({
       }),
       invalidatesTags: ["Rank"],
       transformResponse: (response: ApiEnvelope<RankResponseWithPagination>) =>
-        response.data,
+        response?.data,
     }),
     uploadDocuments: builder.mutation<UploadResponse, FormData>({
       query: (body) => ({
@@ -60,23 +60,17 @@ export const searchApi = createApi({
         method: "POST",
         body,
       }),
+      invalidatesTags: ["Document", "Rank", "Meta"],
       transformResponse: (response: ApiEnvelope<UploadResponse>) =>
-        response.data,
+        response?.data,
     }),
-    getDocument: builder.query<DocumentApiResponse | Blob, number>({
-      query: (docId) => ({
-        url: `/document/${docId}`,
-        responseHandler: async (response) => {
-          const contentType = response.headers.get("content-type") ?? "";
-          if (contentType.includes("application/pdf")) {
-            return response.blob();
-          }
-
-          return response.json();
-        },
-      }),
-      transformResponse: (response: ApiEnvelope<DocumentResponse> | Blob) =>
-        response instanceof Blob ? response : response.data,
+    getDocument: builder.query<DocumentResponse, number>({
+      query: (docId) => `/document/${docId}`,
+      providesTags: (_result, _error, docId) => [
+        { type: "Document", id: docId },
+      ],
+      transformResponse: (response: ApiEnvelope<DocumentResponse>) =>
+        response?.data,
     }),
 
     getStatus: builder.query<{ is_indexing: boolean; status: string }, void>({

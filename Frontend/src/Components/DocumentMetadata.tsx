@@ -35,9 +35,16 @@ export default function DocumentMetadata({ name, path, text }: DocumentMetadataP
             <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">
               Name
             </div>
-            <h3 className="text-base sm:text-lg font-semibold text-slate-900 leading-snug wrap-break-word">
-              {name}
-            </h3>
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-base sm:text-lg font-semibold text-slate-900 leading-snug wrap-break-word">
+                {name}
+              </h3>
+              {path?.toLowerCase().endsWith(".pdf") && (
+                <span className="px-1.5 py-0.5 text-[10px] font-bold font-mono tracking-wider uppercase text-red-600 bg-red-50 border border-red-200/80 rounded-md shadow-2xs select-none">
+                  PDF
+                </span>
+              )}
+            </div>
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2.5">
