@@ -18,7 +18,7 @@ const allowedExt = [".pdf", ".txt"];
 const Upload = () => {
   return (
     <>
-      <div className="relative max-w-4xl mx-auto px-4 sm:px-6 pt-16 pb-20">
+      <div className="relative max-w-4xl mx-auto px-4 sm:px-6 pt-16 pb-16">
         <Link
           className="inline-flex items-center gap-2 text-[#70757a] hover:text-[#202124] transition-colors duration-200 mb-8 group"
           to="/"
@@ -61,6 +61,13 @@ const Upload = () => {
 
 export default Upload;
 
+type ProcessingState =
+  | "uploading"
+  | "uploaded"
+  | "indexing"
+  | "indexed"
+  | "error";
+
 function UploadArea() {
   const [selected, setSelected] = useState<File[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -74,6 +81,23 @@ function UploadArea() {
   >("idle");
 
   const [uploadDocuments, { isLoading }] = useUploadDocumentsMutation();
+
+  const handleReset = useCallback(() => {
+    setSelected([]);
+    setSuccessFiles(null);
+    setError(null);
+    setIndexingPhase("idle");
+    setShowInput(true);
+    if (previewUrl) {
+      try {
+        URL.revokeObjectURL(previewUrl);
+      } catch {
+        /* ignore */
+      }
+      setPreviewUrl(null);
+    }
+  }, [previewUrl]);
+
   const validateFiles = useCallback((files: FileList | null) => {
     setError(null);
     if (!files || files.length === 0) {
@@ -111,7 +135,6 @@ function UploadArea() {
         files.forEach((f) => form.append("files", f));
         const resp = await uploadDocuments(form).unwrap();
         setSuccessFiles(resp?.saved_files ?? null);
-        setSelected([]);
 
         if (previewUrl) {
           try {
@@ -124,7 +147,6 @@ function UploadArea() {
 
         setShowInput(false);
         setIndexingPhase("uploaded");
-        // setPollStatus(true);
       } catch (err: unknown) {
         const e1 = err as { data?: { message?: string }; message?: string };
         const msg = e1?.data?.message ?? e1?.message ?? "Upload failed.";
@@ -137,7 +159,7 @@ function UploadArea() {
           }
           setPreviewUrl(null);
         }
-        setShowInput(true);
+        setShowInput(false);
       }
     },
     [uploadDocuments, previewUrl],
@@ -148,25 +170,29 @@ function UploadArea() {
   });
 
   useEffect(() => {
-    if (!statusData) return;
+    if (!statusData || indexingPhase === "idle") return;
     const isIndexing =
       (statusData as { response?: { data?: { is_indexing?: boolean } } })
         ?.response?.data?.is_indexing ??
       (statusData as { data?: { is_indexing?: boolean } })?.data?.is_indexing;
-    console.log("isIndexing", isIndexing);
+
     if (isIndexing) {
-      // defer to avoid sync setState-in-effect warning
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIndexingPhase("indexing");
-    } else if (!isIndexing) {
+    } else if (
+      !isIndexing &&
+      (indexingPhase === "indexing" || indexingPhase === "uploaded")
+    ) {
       setIndexingPhase("indexed");
     }
-  }, [statusData]);
+  }, [statusData, indexingPhase]);
 
   const handleInput = useCallback(
     (e: ChangeEvent<HTMLInputElement>) => {
       const files = validateFiles(e.target.files);
-      if (!files) return;
+      if (!files) {
+        setShowInput(false);
+        return;
+      }
       setSelected(files);
 
       const img = files.find((f) => f.type.startsWith("image/"));
@@ -177,9 +203,8 @@ function UploadArea() {
           /* ignore */
         }
         setPreviewUrl(URL.createObjectURL(img));
-        setShowInput(false);
       }
-
+      setShowInput(false);
       void doUpload(files);
     },
     [validateFiles, doUpload, previewUrl],
@@ -189,7 +214,10 @@ function UploadArea() {
     (e: DragEvent<HTMLDivElement>) => {
       e.preventDefault();
       const files = validateFiles(e.dataTransfer.files);
-      if (!files) return;
+      if (!files) {
+        setShowInput(false);
+        return;
+      }
       setSelected(files);
 
       const img = files.find((f) => f.type.startsWith("image/"));
@@ -200,9 +228,8 @@ function UploadArea() {
           /* ignore */
         }
         setPreviewUrl(URL.createObjectURL(img));
-        setShowInput(false);
       }
-
+      setShowInput(false);
       void doUpload(files);
     },
     [validateFiles, doUpload, previewUrl],
@@ -221,6 +248,38 @@ function UploadArea() {
     };
   }, [previewUrl]);
 
+  // Determine current processing state
+  let currentState: ProcessingState | null = null;
+  if (error) {
+    currentState = "error";
+  } else if (isLoading) {
+    currentState = "uploading";
+  } else if (indexingPhase === "indexed") {
+    currentState = "indexed";
+  } else if (indexingPhase === "indexing") {
+    currentState = "indexing";
+  } else if (
+    indexingPhase === "uploaded" ||
+    (successFiles && successFiles.length > 0)
+  ) {
+    currentState = "uploaded";
+  }
+
+  // Active file details
+  const activeFileName =
+    selected.length > 0
+      ? selected[0].name
+      : successFiles && successFiles.length > 0
+        ? successFiles[0].name
+        : "Document";
+
+  const activeFileSize =
+    selected.length > 0
+      ? `${(selected[0].size / 1024).toFixed(2)} KB`
+      : successFiles && successFiles.length > 0
+        ? `${(successFiles[0].size / 1024).toFixed(2)} KB`
+        : "";
+
   return (
     <div className="max-w-2xl mx-auto animate-fade-in">
       <div
@@ -228,7 +287,7 @@ function UploadArea() {
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleDrop}
       >
-        {showInput && (
+        {showInput && !currentState && (
           <>
             <input
               type="file"
@@ -272,203 +331,213 @@ function UploadArea() {
           </>
         )}
 
-        {previewUrl && (
-          <div className="mt-4 text-center">
-            <img
-              src={previewUrl}
-              alt="preview"
-              className="mx-auto rounded-lg shadow max-h-64 object-contain"
-            />
-            <div className="mt-2">
-              <button
-                type="button"
-                className="px-3 py-1 bg-gray-100 rounded text-sm hover:bg-gray-200"
-                onClick={() => {
-                  try {
-                    if (previewUrl) URL.revokeObjectURL(previewUrl);
-                  } catch {
-                    /* ignore */
-                  }
-                  setPreviewUrl(null);
-                  setShowInput(true);
-                }}
-              >
-                Remove image
-              </button>
-            </div>
-          </div>
-        )}
-
-        <div className="mt-4">
-          {isLoading && <div className="text-blue-600">Uploading...</div>}
-          {error && <div className="text-red-600">{error}</div>}
-
-          {(selected.length > 0 ||
-            (successFiles && successFiles.length > 0)) && (
-            <div className="mt-6">
-              <div className="relative rounded-2xl border p-6 bg-white shadow-md flex items-center gap-4">
-                <div className="flex-none w-14 h-14 bg-white rounded-lg flex items-center justify-center shadow-inner">
-                  <svg
-                    className="w-8 h-8 text-red-500"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={1.5}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
+        {/* Single Unified Processing Card */}
+        {currentState && (
+          <div>
+            <div
+              className={`rounded-2xl border py-7 px-6 shadow-sm transition-all duration-300 ${
+                currentState === "uploading"
+                  ? "bg-blue-50 border-blue-200"
+                  : currentState === "uploaded"
+                    ? "bg-amber-50 border-amber-200"
+                    : currentState === "indexing"
+                      ? "bg-yellow-50 border-yellow-200 text-yellow-700"
+                      : currentState === "indexed"
+                        ? "bg-emerald-50 border-green-200 text-green-700"
+                        : "bg-red-50 border-red-200 text-red-700"
+              }`}
+            >
+              {/* Card Header Row */}
+              <div className="flex items-center justify-between gap-4">
+                {/* File Metadata (Icon + Name + Size) */}
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <div
+                    className={`flex-none size-11 rounded-xl flex items-center justify-center ${
+                      currentState === "uploading"
+                        ? "bg-blue-100/80 text-blue-600"
+                        : currentState === "uploaded"
+                          ? "bg-amber-100/80 text-amber-600"
+                          : currentState === "indexing"
+                            ? "bg-yellow-100/80 text-yellow-700"
+                            : currentState === "indexed"
+                              ? "bg-emerald-100/80 text-green-600"
+                              : "bg-red-100/80 text-red-600"
+                    }`}
                   >
-                    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-                    <path d="M14 2v6h6" />
-                  </svg>
-                </div>
-                <div className="flex-1">
-                  <div className="text-lg font-semibold text-gray-800">
-                    {selected.length > 0
-                      ? selected[0].name
-                      : successFiles![0].name}
+                    <svg
+                      className="w-6 h-6"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={1.75}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                      <path d="M14 2v6h6" />
+                    </svg>
                   </div>
-                  <div className="text-sm text-gray-500 mt-1">
-                    {selected.length > 0
-                      ? `${(selected[0].size / 1024).toFixed(2)} KB`
-                      : `${(successFiles![0].size / 1024).toFixed(2)} KB`}
+                  <div className="min-w-0 flex-1">
+                    <h4 className="text-base font-semibold truncate text-gray-900">
+                      {activeFileName}
+                    </h4>
+                    {activeFileSize && (
+                      <p className="text-xs text-gray-500 font-medium">
+                        {activeFileSize}
+                      </p>
+                    )}
                   </div>
                 </div>
-                <button
-                  onClick={() => {
-                    setSelected([]);
-                    setSuccessFiles(null);
-                    if (previewUrl) {
-                      try {
-                        URL.revokeObjectURL(previewUrl);
-                      } catch {
-                        /* ignore */
-                      }
-                      setPreviewUrl(null);
-                    }
-                    setShowInput(true);
-                  }}
-                  className="absolute right-4 top-4 text-gray-400 hover:text-gray-700"
-                  aria-label="remove"
-                >
-                  <svg
-                    className="w-6 h-6"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
+
+                {/* Inline Status Text & Close/Remove Button */}
+                <div className="flex items-center gap-3 flex-none">
+                  {/* Clean Inline Header Status Text (No pill badge wrapper) */}
+                  <div
+                    className={`flex items-center gap-2 text-sm font-medium ${
+                      currentState === "uploading"
+                        ? "text-blue-600"
+                        : currentState === "uploaded"
+                          ? "text-amber-700"
+                          : currentState === "indexing"
+                            ? "text-yellow-700"
+                            : currentState === "indexed"
+                              ? "text-green-700"
+                              : "text-red-700"
+                    }`}
                   >
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                </button>
+                    {currentState === "uploading" && (
+                      <>
+                        <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                        <span>Uploading...</span>
+                      </>
+                    )}
+
+                    {currentState === "uploaded" && (
+                      <>
+                        <svg
+                          className="w-4 h-4 text-amber-600"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
+                        </svg>
+                        <span>Uploaded</span>
+                      </>
+                    )}
+
+                    {currentState === "indexing" && (
+                      <>
+                        <div className="w-4 h-4 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin" />
+                        <span>Indexing</span>
+                      </>
+                    )}
+
+                    {currentState === "indexed" && (
+                      <>
+                        <svg
+                          className="w-4 h-4 text-green-600"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={2.5}
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M20 6L9 17l-5-5"
+                          />
+                        </svg>
+                        <span>Indexed</span>
+                      </>
+                    )}
+
+                    {currentState === "error" && (
+                      <>
+                        <svg
+                          className="w-4 h-4 text-red-600"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                        >
+                          <circle cx="12" cy="12" r="10" />
+                          <line x1="12" y1="8" x2="12" y2="12" />
+                          <line x1="12" y1="16" x2="12.01" y2="16" />
+                        </svg>
+                        <span>Upload Failed</span>
+                      </>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleReset}
+                    className="p-1 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-black/5 transition-colors cursor-pointer"
+                    aria-label="Remove document"
+                    title="Remove document"
+                  >
+                    <svg
+                      className="w-5 h-5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </div>
               </div>
 
-              {successFiles && (
-                <>
-                  {indexingPhase === "uploaded" && (
-                    <div className="mt-6 rounded-2xl border p-6 bg-white shadow-sm">
-                      <div className="text-gray-800 font-medium">
-                        File uploaded successfully.
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        Waiting for indexing to start...
-                      </div>
-                    </div>
-                  )}
-
-                  {indexingPhase === "indexing" && (
-                    <div className="mt-6 rounded-2xl border p-6 bg-white shadow-sm">
-                      <div className="flex items-center gap-4">
-                        <div className="animate-spin w-5 h-5 border-2 border-gray-300 border-t-gray-600 rounded-full" />
-                        <div>
-                          <div className="text-gray-800 font-medium">
-                            File indexing in progress
-                          </div>
-                          <div className="text-sm text-gray-600">
-                            This may take a few moments.
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {indexingPhase === "indexed" && (
-                    <>
-                      <div className="mt-6 rounded-2xl border p-6 bg-linear-to-r from-white to-green-50 shadow-sm">
-                        <div className="flex items-center gap-4">
-                          <div className="flex-none w-10 h-10 bg-green-50 rounded-full flex items-center justify-center">
-                            <svg
-                              className="w-5 h-5 text-green-600"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth={2}
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <path d="M20 6L9 17l-5-5" />
-                            </svg>
-                          </div>
-                          <div>
-                            <div className="text-green-700 font-semibold">
-                              Document indexed successfully!
-                            </div>
-                            <div className="text-sm text-gray-600">
-                              Ready to search your content
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-6 text-center">
-                        <Link
-                          to="/"
-                          className="inline-block px-8 py-3 rounded-full bg-linear-to-r from-purple-600 to-pink-500 text-white font-medium shadow-lg hover:opacity-95"
-                        >
-                          Start Searching
-                          <span className="ml-2">→</span>
-                        </Link>
-                      </div>
-                    </>
-                  )}
-                </>
+              {/* Optional Preview image if image file uploaded */}
+              {previewUrl && (
+                <div className="mt-4 text-center">
+                  <img
+                    src={previewUrl}
+                    alt="preview"
+                    className="mx-auto rounded-lg shadow max-h-48 object-contain"
+                  />
+                </div>
               )}
             </div>
-          )}
 
-          <div className="mt-4 text-sm">
-            {isLoading && <div className="text-blue-600">Uploading...</div>}
-            {error && <div className="text-red-600">{error}</div>}
-            {selected.length > 0 && (
-              <div className="mt-2">
-                <strong>Selected:</strong>
-                <ul className="list-disc list-inside">
-                  {selected.map((f) => (
-                    <li key={f.name}>
-                      {f.name} ({Math.round(f.size / 1024)} KB)
-                    </li>
-                  ))}
-                </ul>
+            {/* External Action Buttons (Outside Card, Centered directly underneath) */}
+            {currentState === "indexed" && (
+              <div className="mt-6 text-center animate-fade-in">
+                <Link
+                  to="/"
+                  className="inline-flex items-center gap-2 px-8 py-3 rounded-full bg-linear-to-r from-purple-600 to-pink-500 text-white font-medium shadow-lg hover:opacity-95 transition-opacity"
+                >
+                  <span>Start Searching</span>
+                  <span className="text-lg">→</span>
+                </Link>
               </div>
             )}
 
-            {successFiles && (
-              <div className="mt-4">
-                <strong className="text-green-700">Uploaded:</strong>
-                <ul className="list-disc list-inside">
-                  {successFiles.map((f) => (
-                    <li key={f.stored_name}>
-                      {f.name} ({Math.round(f.size / 1024)} KB)
-                    </li>
-                  ))}
-                </ul>
+            {currentState === "error" && (
+              <div className="mt-6 text-center animate-fade-in">
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  className="inline-flex items-center gap-2 px-8 py-3 rounded-full bg-gray-800 hover:bg-gray-900 text-white font-medium shadow-md transition-colors cursor-pointer"
+                >
+                  Try Again
+                </button>
               </div>
             )}
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
 }
+
