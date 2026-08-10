@@ -202,37 +202,23 @@ export default function Search() {
                           </svg>
                           Document Information
                         </h4>
-                        <div className="space-y-2 pl-6">
+                        <div className="space-y-3 pl-6">
                           <div className="flex items-center justify-between">
-                            <span className="text-sm text-[#70757a]">
-                              Doc ID:
+                            <span className="text-xs text-slate-500 font-medium">
+                              Document Length:
                             </span>
-                            <span className="text-sm font-medium text-[#202124]">
-                              {r.doc_id}
+                            <span className="text-sm font-mono font-bold text-slate-800">
+                              {r.doc_length.toLocaleString()}{" "}
+                              <span className="text-xs font-normal text-slate-500 font-sans">terms</span>
                             </span>
                           </div>
+
                           <div className="flex items-center justify-between">
-                            <span className="text-sm text-[#70757a]">
-                              Path:
+                            <span className="text-xs text-slate-500 font-medium">
+                              Vector Length (||d||₂):
                             </span>
-                            <span className="text-xs font-mono text-[#202124] bg-white px-2 py-1 rounded">
-                              {r.path}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm text-[#70757a]">
-                              Length:
-                            </span>
-                            <span className="text-sm font-medium text-[#202124]">
-                              {r.doc_length.toLocaleString()} terms
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm text-[#70757a]">
-                              Doc Norm:
-                            </span>
-                            <span className="text-sm font-mono text-[#202124]">
-                              {r.doc_norm}
+                            <span className="text-sm font-mono font-bold text-slate-800">
+                              {typeof r.doc_norm === "number" ? r.doc_norm.toFixed(5) : r.doc_norm}
                             </span>
                           </div>
                         </div>
@@ -332,47 +318,47 @@ export default function Search() {
                         </svg>
                         Term Statistics (TF-IDF)
                       </h4>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-xs">
+                      <div className="overflow-x-auto border border-slate-200/80 rounded-xl bg-white shadow-2xs">
+                        <table className="w-full text-xs text-left border-collapse">
                           <thead>
-                            <tr className="bg-linear-to-r from-gray-100 to-blue-50">
-                              <th className="text-left px-3 py-2 font-semibold text-[#202124]">
+                            <tr className="bg-slate-50/90 text-slate-700 border-b border-slate-200">
+                              <th className="px-4 py-2.5 font-semibold">
                                 Term
                               </th>
-                              <th className="text-right px-3 py-2 font-semibold text-[#202124]">
+                              <th className="px-4 py-2.5 font-semibold text-right">
                                 Doc TF
                               </th>
-                              <th className="text-right px-3 py-2 font-semibold text-[#202124]">
+                              <th className="px-4 py-2.5 font-semibold text-right">
                                 Doc IDF
                               </th>
-                              <th className="text-right px-3 py-2 font-semibold text-[#202124]">
+                              <th className="px-4 py-2.5 font-semibold text-right text-emerald-800">
                                 Doc TF-IDF
                               </th>
-                              <th className="text-right px-3 py-2 font-semibold text-[#202124]">
+                              <th className="px-4 py-2.5 font-semibold text-right text-purple-800">
                                 Query TF-IDF
                               </th>
                             </tr>
                           </thead>
-                          <tbody>
+                          <tbody className="divide-y divide-slate-100 font-mono text-slate-700">
                             {r.matched_details.map((d) => (
                               <tr
                                 key={d.term}
-                                className="border-t border-gray-200 hover:bg-white/50 transition-colors duration-200"
+                                className="hover:bg-blue-50/30 transition-colors duration-150"
                               >
-                                <td className="px-3 py-2 font-medium text-[#4285f4]">
+                                <td className="px-4 py-2.5 font-sans font-semibold text-blue-700">
                                   {d.term}
                                 </td>
-                                <td className="px-3 py-2 text-right font-mono text-[#70757a]">
-                                  {d.doc_tf}
+                                <td className="px-4 py-2.5 text-right">
+                                  {typeof d.doc_tf === "number" ? d.doc_tf.toFixed(4) : d.doc_tf}
                                 </td>
-                                <td className="px-3 py-2 text-right font-mono text-[#70757a]">
-                                  {d.doc_idf}
+                                <td className="px-4 py-2.5 text-right">
+                                  {typeof d.doc_idf === "number" ? d.doc_idf.toFixed(4) : d.doc_idf}
                                 </td>
-                                <td className="px-3 py-2 text-right font-mono text-[#34a853] font-semibold">
-                                  {d.doc_tfidf}
+                                <td className="px-4 py-2.5 text-right font-bold text-emerald-700">
+                                  {typeof d.doc_tfidf === "number" ? d.doc_tfidf.toFixed(5) : d.doc_tfidf}
                                 </td>
-                                <td className="px-3 py-2 text-right font-mono text-[#ea4335] font-semibold">
-                                  {d.query_tfidf}
+                                <td className="px-4 py-2.5 text-right font-bold text-purple-700">
+                                  {typeof d.query_tfidf === "number" ? d.query_tfidf.toFixed(5) : d.query_tfidf}
                                 </td>
                               </tr>
                             ))}
